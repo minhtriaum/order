@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>카페 주문 v3.0</title>
+<title>카페 주문 v3.6</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 /* 디자인: 카페 카운터 느낌의 크림 배경 + 에스프레소 포인트. HOT은 주황, ICE는 파랑으로 일관되게 구분한다. */
@@ -122,8 +122,10 @@ textarea.inp{min-height:130px;padding:10px 12px;line-height:1.6;resize:vertical}
 
 /* ── 주문 화면 ── */
 .order{max-width:780px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.order>[data-paint]:empty{display:none}
 .hero h2{font-size:26px}
 .hero p{color:var(--muted);margin-top:2px}
+.notice .note:first-child{margin-top:0}
 .name-inp{min-height:54px;font-size:18px;font-weight:600}
 .name-inp.shake{animation:shake .35s;border-color:var(--bad)}
 @keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
@@ -212,13 +214,14 @@ dialog::backdrop{background:rgba(20,14,10,.45)}
 .dlg p{white-space:pre-line}
 dialog.photo{max-width:min(96vw,900px)}
 #customDlg{width:min(92vw,420px)}
-.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.seg label{min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface-2);font-weight:700;cursor:pointer}
-.seg input{position:absolute;opacity:0;pointer-events:none}
-.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
-.seg .hot:has(input:checked){background:var(--hot);border-color:var(--hot);color:#fff}
-.seg .ice:has(input:checked){background:var(--ice);border-color:var(--ice);color:#fff}
-.seg .none:has(input:checked){background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+/* 메뉴 직접 추가 창의 온도 선택(정렬 버튼 .seg와 이름이 겹치지 않게 따로 둠) */
+.tempseg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tempseg label{position:relative;min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface-2);font-weight:700;cursor:pointer}
+.tempseg input{position:absolute;opacity:0;pointer-events:none}
+.tempseg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.tempseg .hot:has(input:checked){background:var(--hot);border-color:var(--hot);color:#fff}
+.tempseg .ice:has(input:checked){background:var(--ice);border-color:var(--ice);color:#fff}
+.tempseg .none:has(input:checked){background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .add-custom{width:100%;margin-top:10px;border-style:dashed}
 .mlist.custom{margin-top:12px}
 .xbtn{margin-left:8px;border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;vertical-align:middle}
@@ -250,7 +253,7 @@ dialog.photo img{display:block;max-width:100%;max-height:80vh;border-radius:10px
 <dialog id="customDlg" aria-labelledby="cuTitle"><form id="f-custom" class="dlg" novalidate>
   <div><h3 id="cuTitle">메뉴 직접 추가</h3><p class="hint">메뉴판에 없는 메뉴를 적어 주문하세요. 추가한 메뉴는 「직접 추가한 메뉴」에 남아 모든 기기에서 다시 고를 수 있습니다.</p></div>
   <div><label class="lbl" for="cuName">메뉴 이름</label><input id="cuName" class="inp" maxlength="40" autocomplete="off" placeholder="예) 바닐라라떼"></div>
-  <div><span class="lbl" id="cuTempL">온도</span><div class="seg" role="radiogroup" aria-labelledby="cuTempL">
+  <div><span class="lbl" id="cuTempL">온도</span><div class="tempseg" role="radiogroup" aria-labelledby="cuTempL">
     <label class="hot"><input type="radio" name="cuTemp" value="HOT"> HOT</label>
     <label class="ice"><input type="radio" name="cuTemp" value="ICE"> ICE</label>
     <label class="none"><input type="radio" name="cuTemp" value="-"> 없음</label></div></div>
@@ -264,14 +267,287 @@ dialog.photo img{display:block;max-width:100%;max-height:80vh;border-radius:10px
 <input id="menuCsv" type="file" accept=".csv,.txt,text/csv" hidden>
 <input id="dbImport" type="file" accept=".json,application/json" hidden>
 
+<!-- 구글 시트에 붙여넣을 Apps Script 코드. 앱이 읽어서 설정 → 데이터 · DB의 「코드 복사」에 씀 -->
+<script type="text/plain" id="gasCode">
+// 카페 주문 - 구글 시트 DB (Apps Script) · v3.6 보안판
+// 1) TOKEN을 길고 임의의 문자열로 바꾸기 (이미 쓰던 TOKEN이 있으면 그 값 그대로)
+// 2) 처음이면 배포 → 새 배포 → 웹 앱, 실행: 나, 액세스: 모든 사용자
+//    이미 배포했다면 배포 → 배포 관리 → 연필(수정) → 버전: 새 버전 → 배포 (웹 앱 URL이 그대로 유지됨)
+// 로그인 · 비밀번호 · 권한 · 주문 마감은 이 코드가 확인합니다. 시트의 docs 탭은 직접 고치지 마세요.
+var TOKEN = '여기에-길고-임의의-문자열';
+var SHEET = 'docs';
+var API = 2;              // 앱이 이 값으로 코드 버전을 확인함
+var SESSION_SEC = 21600;  // 로그인 유지 6시간 (CacheService 최대값)
+var CELL_MAX = 50000;
+var HASH_ROUNDS = 1000;
+var PERM_KEYS = ['menuAdmin', 'brandMenus', 'orderPreview', 'orderRules', 'checkPassword'];
+// config/main 칸별로 바꿀 수 있는 권한 (관리자는 전부)
+var FIELD = { menu: ['menuAdmin', 'brandMenus'], checkPw: ['checkPassword'], checkPwDate: ['checkPassword'], checkPwBy: ['checkPassword'],
+  allowCancel: ['orderRules'], deadline: ['orderRules'], lockOrder: ['orderRules'], lockCancel: ['orderRules'] };
+
+function sheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var s = ss.getSheetByName(SHEET);
+  if (!s) { s = ss.insertSheet(SHEET); s.appendRow(['path', 'json', 'ts']); s.setFrozenRows(1); }
+  return s;
+}
+function out_(o) { o.v = API; return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+function doGet() { return out_({ ok: true, app: 'cafe-order-sheet' }); }
+
+function doPost(e) {
+  var req;
+  try { req = JSON.parse(e.postData.contents); } catch (x) { return out_({ ok: false, error: 'bad-request' }); }
+  if (TOKEN.indexOf('여기에') === 0) return out_({ ok: false, error: 'token-not-set' });
+  if (req.token !== TOKEN) return out_({ ok: false, error: 'token' });
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var db = load_(), now = Date.now(), op = req.op, who = session_(db, req.sid);
+    if (req.sid && !who && op !== 'login' && op !== 'logout') return out_({ ok: false, error: 'session' });
+    rotate_(db, now);
+    if (op === 'read') return out_({ ok: true, now: now, rows: visible_(db, who, Number(req.since) || 0) });
+    if (op === 'write') { var err = write_(db, who, req.ops || [], now); return out_(err ? { ok: false, error: err } : { ok: true, now: now }); }
+    if (op === 'login') return out_(login_(db, req.id, req.pw, now));
+    if (op === 'logout') { if (req.sid) CacheService.getScriptCache().remove('s_' + req.sid); return out_({ ok: true, now: now }); }
+    if (op === 'setpw') return out_(setpw_(db, who, req.old, req.pw, now));
+    if (op === 'acct') return out_(acct_(db, who, req, now));
+    if (op === 'checkpw') return out_(checkpw_(db, req.pw, now));
+    return out_({ ok: true, now: now, rows: db.list.length }); // ping
+  } finally { lock.releaseLock(); }
+}
+
+/* ---- 시트 읽기/쓰기 ---- */
+function load_() {
+  var s = sheet_(), last = s.getLastRow(), db = { s: s, rows: {}, list: [] };
+  var vals = last > 1 ? s.getRange(2, 1, last - 1, 3).getValues() : [];
+  for (var i = 0; i < vals.length; i++) {
+    var p = String(vals[i][0]);
+    db.rows[p] = { r: i + 2, json: String(vals[i][1]), ts: Number(vals[i][2]) };
+    db.list.push(p);
+  }
+  return db;
+}
+function doc_(db, p) { // 조각(path#0, #1 …)으로 나뉜 문서도 합쳐서 돌려줌
+  var x = db.rows[p], v;
+  if (!x || !x.json) return undefined;
+  try {
+    v = JSON.parse(x.json);
+    if (!v || !v.__chunks) return v;
+    var s = '';
+    for (var k = 0; k < v.__chunks; k++) s += JSON.parse((db.rows[p + '#' + k] || {}).json || '""');
+    return JSON.parse(s);
+  } catch (e) { return undefined; }
+}
+function put_(db, p, json, now) {
+  var row = [p, json, now], x = db.rows[p];
+  if (x) { db.s.getRange(x.r, 1, 1, 3).setValues([row]); x.json = json; x.ts = now; }
+  else { db.s.appendRow(row); db.rows[p] = { r: db.s.getLastRow(), json: json, ts: now }; db.list.push(p); }
+}
+function tz_() { return SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone(); }
+function closed_(m) { // 마감 시각은 이 스프레드시트의 시간대(파일 → 설정) 기준
+  var d = /^(\d{2}):(\d{2})$/.exec(String(m.deadline || ''));
+  return !!d && Utilities.formatDate(new Date(), tz_(), 'HH:mm') >= d[0];
+}
+function rotate_(db, now) { // 날짜가 바뀌면 주문확인 비밀번호를 새 4자리 숫자로
+  var m = doc_(db, 'config/main'), t = Utilities.formatDate(new Date(), tz_(), 'yyyy-MM-dd');
+  if (!m || m.checkPwDate === t) return;
+  m.checkPw = ('000' + Math.floor(Math.random() * 10000)).slice(-4); m.checkPwDate = t; m.checkPwBy = 'auto';
+  put_(db, 'config/main', JSON.stringify(m), now);
+}
+function log_(db, id, type, ok, now) {
+  put_(db, 'logs/l' + now.toString(36) + Math.random().toString(36).slice(2, 6), JSON.stringify({ ts: now, id: String(id || '(빈 값)').slice(0, 30), type: type, ok: !!ok }), now);
+}
+
+/* ---- 계정 · 로그인 ---- */
+function legacyHash_(id, pw) { // v3.5까지 앱이 쓰던 해시. 다음 로그인 때 새 해시로 바뀜
+  var s = 'cafe|' + id + '|' + pw, h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (var i = 0; i < s.length; i++) { var ch = s.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+function slow_(salt, pw) { // 계정마다 다른 솔트 + SHA-256 반복
+  var b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + '|' + pw, Utilities.Charset.UTF_8);
+  for (var i = 0; i < HASH_ROUNDS; i++) b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, b);
+  return Utilities.base64Encode(b);
+}
+function setHash_(a, pw) { a.salt = Utilities.getUuid(); a.ph2 = slow_(a.salt, pw); delete a.ph; }
+function verify_(a, pw) { return a.ph2 ? a.ph2 === slow_(a.salt, pw) : !!a.ph && a.ph === legacyHash_(a.id, pw); }
+function accounts_(db) {
+  var d = doc_(db, 'config/accounts');
+  if (d && d.list && d.list.length) return d.list;
+  return [{ id: 'admin', role: 'admin', must: true, ph: legacyHash_('admin', '1234') }, { id: 'order', role: 'user', must: true, ph: legacyHash_('order', '1234') }];
+}
+function saveAccounts_(db, list, now) { put_(db, 'config/accounts', JSON.stringify({ list: list }), now); }
+function pub_(a) { return { id: a.id, role: a.role, must: !!a.must, perms: a.perms || null }; } // 비밀번호 정보는 빼고 보냄
+function perms_(p) { var o = {}; PERM_KEYS.forEach(function (k) { o[k] = !p || p[k] !== false; }); return o; }
+function can_(a, perm) { return !!a && !a.must && (a.role === 'admin' || !a.perms || a.perms[perm] !== false); }
+function fieldOk_(a, k) { return (FIELD[k] || []).some(function (perm) { return can_(a, perm); }); }
+function session_(db, sid) {
+  if (!sid) return null;
+  var c = CacheService.getScriptCache(), id = c.get('s_' + sid);
+  if (!id) return null;
+  var a = accounts_(db).filter(function (x) { return x.id === id; })[0];
+  if (!a) { c.remove('s_' + sid); return null; }
+  c.put('s_' + sid, id, SESSION_SEC); // 쓰는 동안은 계속 연장
+  return a;
+}
+function login_(db, id, pw, now) {
+  id = String(id || '').slice(0, 30); pw = String(pw || '');
+  var c = CacheService.getScriptCache(), fk = 'f_' + id, fails = Number(c.get(fk) || 0);
+  if (fails >= 5) return { ok: false, error: 'locked' };
+  var list = accounts_(db), a = list.filter(function (x) { return x.id === id; })[0];
+  if (!a || !verify_(a, pw)) { c.put(fk, String(fails + 1), 600); log_(db, id, 'login', false, now); return { ok: false, error: 'login' }; }
+  c.remove(fk);
+  if (!a.ph2) { setHash_(a, pw); saveAccounts_(db, list, now); } // 옛 해시 → 새 해시
+  var sid = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  c.put('s_' + sid, a.id, SESSION_SEC);
+  log_(db, a.id, 'login', true, now);
+  return { ok: true, now: now, sid: sid, me: pub_(a) };
+}
+function setpw_(db, who, old, pw, now) {
+  if (!who) return { ok: false, error: 'session' };
+  pw = String(pw || '');
+  if (!who.must && !verify_(who, String(old || ''))) return { ok: false, error: 'oldpw' };
+  if (pw.length < 4 || pw === '1234') return { ok: false, error: 'weakpw' };
+  if (verify_(who, pw)) return { ok: false, error: 'samepw' };
+  var list = accounts_(db);
+  list.forEach(function (a) { if (a.id === who.id) { setHash_(a, pw); a.must = false; } });
+  saveAccounts_(db, list, now); log_(db, who.id, 'pwchange', true, now);
+  return { ok: true, now: now };
+}
+function acct_(db, who, req, now) { // 관리자만: 사용자 계정 추가 · 비밀번호 초기화 · 권한 · 삭제
+  if (!who || who.must || who.role !== 'admin') return { ok: false, error: 'forbidden' };
+  var list = accounts_(db), id = String(req.id || ''), a = list.filter(function (x) { return x.id === id; })[0];
+  if (req.action === 'add') {
+    if (!/^[A-Za-z0-9_가-힣]{2,20}$/.test(id)) return { ok: false, error: 'badid' };
+    if (a) return { ok: false, error: 'dupid' };
+    a = { id: id, role: 'user', must: true, perms: perms_(req.perms) }; setHash_(a, String(req.pw || '1234')); list.push(a);
+  } else {
+    if (!a) return { ok: false, error: 'noacct' };
+    if (a.role === 'admin') return { ok: false, error: 'forbidden' };
+    if (req.action === 'reset') { setHash_(a, '1234'); a.must = true; }
+    else if (req.action === 'perms') a.perms = perms_(req.perms);
+    else if (req.action === 'del') list = list.filter(function (x) { return x.id !== id; });
+    else return { ok: false, error: 'bad-request' };
+  }
+  saveAccounts_(db, list, now);
+  return { ok: true, now: now };
+}
+function mergeAccounts_(db, list) { // 백업 가져오기: 비밀번호 정보가 없는 계정은 지금 비밀번호를 유지
+  var cur = accounts_(db), out = [];
+  (Array.isArray(list) ? list : []).forEach(function (a) {
+    if (!a || !a.id) return;
+    var old = cur.filter(function (x) { return x.id === a.id; })[0];
+    var n = { id: String(a.id).slice(0, 20), role: a.role === 'admin' ? 'admin' : 'user', must: !!a.must, perms: a.perms || null };
+    if (a.ph2 && a.salt) { n.ph2 = a.ph2; n.salt = a.salt; }
+    else if (a.ph) n.ph = a.ph;
+    else if (old && old.ph2) { n.ph2 = old.ph2; n.salt = old.salt; }
+    else if (old && old.ph) n.ph = old.ph;
+    else { setHash_(n, '1234'); n.must = true; }
+    out.push(n);
+  });
+  return out.some(function (a) { return a.role === 'admin'; }) ? out : cur; // 관리자가 없어지는 변경은 무시
+}
+function checkpw_(db, pw, now) {
+  var c = CacheService.getScriptCache(), n = Number(c.get('cfail') || 0);
+  if (n >= 20) return { ok: false, error: 'locked' };
+  var m = doc_(db, 'config/main') || {};
+  if (String(pw || '') === String(m.checkPw || '1234')) return { ok: true, now: now };
+  c.put('cfail', String(n + 1), 600);
+  return { ok: false, error: 'checkpw' };
+}
+
+/* ---- 권한에 따라 보여 주기 ---- */
+function visible_(db, who, since) {
+  var staff = who && !who.must ? who : null, admin = !!staff && staff.role === 'admin', rows = [];
+  db.list.forEach(function (p) {
+    var x = db.rows[p], base = p.split('#')[0], json = x.json;
+    if (!(x.ts > since)) return;
+    if (base === 'config/accounts' || base === 'config/main') {
+      if (p !== base) return; // 조각 줄은 보내지 않고 합친 문서로 보냄
+      var d = doc_(db, p);
+      if (base === 'config/accounts') { if (!staff) return; json = d ? JSON.stringify({ list: (d.list || []).map(pub_) }) : ''; }
+      else if (d) { if (!can_(staff, 'checkPassword') && !can_(staff, 'orderPreview')) delete d.checkPw; json = JSON.stringify(d); }
+    } else if (base.split('/')[0] === 'logs' && !admin) return;
+    rows.push([p, json, x.ts]);
+  });
+  return rows;
+}
+
+/* ---- 쓰기 검사: 하나라도 막히면 아무것도 쓰지 않음 ---- */
+function order_(v) {
+  if (!v || typeof v.name !== 'string' || !v.name.trim() || v.name.length > 20 || typeof v.menu !== 'string' || !v.menu || v.menu.length > 40) return null;
+  if (['HOT', 'ICE', '-'].indexOf(v.temp) < 0 || typeof v.price !== 'number' || !(v.price >= 0 && v.price <= 1000000)) return null;
+  return { name: v.name, mid: String(v.mid || '').slice(0, 40), menu: v.menu, temp: v.temp, price: Math.round(v.price), paid: false };
+}
+function write_(db, who, ops, now) {
+  var staff = who && !who.must ? who : null, admin = !!staff && staff.role === 'admin';
+  var m = doc_(db, 'config/main') || {}, todo = [], need = staff ? 'forbidden' : 'login';
+  for (var i = 0; i < ops.length; i++) {
+    var p = String(ops[i].path || ''), json = String(ops[i].json || ''), base = p.split('#')[0], coll = base.split('/')[0], v = null;
+    if (!/^[a-z]+\/[A-Za-z0-9_-]{1,60}(#\d{1,3})?$/.test(p) || json.length > CELL_MAX) return 'bad-request';
+    if (json && p === base) { try { v = JSON.parse(json); } catch (x) { return 'bad-request'; } }
+    if (coll === 'orders') {
+      if (p !== base) return 'bad-request';
+      if (!staff) { // 로그인한 계정은 마감 · 취소 제한 없음
+        if (!json) {
+          if (m.allowCancel === false) return 'nocancel';
+          if (m.lockCancel !== false && closed_(m)) return 'closed';
+        } else {
+          if (doc_(db, p)) return 'login'; // 이미 있는 주문 고치기(입금 표시 등)는 로그인 필요
+          if (m.lockOrder !== false && closed_(m)) return 'closed';
+          var o = order_(v); if (!o) return 'bad-request';
+          o.ts = now; json = JSON.stringify(o);
+        }
+      }
+    } else if (coll === 'custom') {
+      if (p !== base || (json && !(v && typeof v.name === 'string' && v.name.trim() && v.name.length <= 40))) return 'bad-request';
+    } else if (p === 'config/main') {
+      if (!staff) return 'login';
+      if (!v) { if (!admin) return 'forbidden'; }
+      else { // __keys에 적힌 칸만 바꿈(없으면 전체). 적히지 않은 칸(가려진 비밀번호 등)은 그대로 둠
+        var cur = doc_(db, p) || {}, keys = Array.isArray(v.__keys) ? v.__keys : Object.keys(v);
+        for (var j = 0; j < keys.length; j++) {
+          var k = String(keys[j]);
+          if (k === '__keys' || !(k in v)) continue;
+          if (!admin && JSON.stringify(v[k]) !== JSON.stringify(cur[k]) && !fieldOk_(staff, k)) return 'forbidden';
+          cur[k] = v[k];
+        }
+        json = JSON.stringify(cur);
+      }
+    } else if (p === 'config/accounts') {
+      if (!admin) return need;
+      json = JSON.stringify({ list: mergeAccounts_(db, v && v.list) });
+    } else if (base === 'config/image') { if (!can_(staff, 'menuAdmin')) return need; }
+    else if (p === 'config/brands') { if (!can_(staff, 'brandMenus')) return need; }
+    else if (!admin) return need; // 로그 · 그 밖의 문서는 관리자(백업 가져오기)만
+    todo.push([p, json]);
+  }
+  todo.forEach(function (t) { put_(db, t[0], t[1], now); });
+  return '';
+}
+</script>
+
 <script>
 (() => {
 'use strict';
 
 /* =====================================================================
+   기본 DB 연결 (여기를 채우세요)
+   구글 시트 Apps Script 웹 앱 URL과 TOKEN을 넣어 두면, 이 파일을 연 모든 기기가
+   따로 입력하지 않아도 처음부터 같은 시트에 연결됩니다.
+   설정 → 데이터 · DB에서 직접 저장한 기기만 그 설정을 따릅니다.
+   ※ 파일을 받은 사람은 누구나 이 값을 볼 수 있으니, 파일은 함께 쓰는 사람에게만 공유하세요.
+   ===================================================================== */
+const PRESET_CONN = {
+  url: '',   // 예) 'https://script.google.com/macros/s/AKfy…/exec'
+  token: '', // Apps Script 코드의 TOKEN 값과 똑같이
+};
+
+/* =====================================================================
    상수
    ===================================================================== */
-const VERSION = '3.4';
+const VERSION = '3.6';
 const LEGACY_KEY = 'cafeOrderApp_v10';           // v1.x · v2.0(단일 파일) 저장 데이터
 const LEGACY_BRAND_KEY = 'cafeOrderBrandMenus_v1';
 const TESSERACT_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
@@ -280,12 +556,14 @@ const PERMS = [
   ['menuAdmin', '메뉴 관리 (사진·CSV·메뉴표)'],
   ['brandMenus', '브랜드별 메뉴판 저장/불러오기'],
   ['orderPreview', '주문 현황 · 공유'],
+  ['orderRules', '주문 설정 (취소 · 마감)'],
   ['checkPassword', '주문확인 비밀번호'],
 ];
 const TABS = [
   { k: 'menu', label: '메뉴 관리', perm: 'menuAdmin' },
   { k: 'brand', label: '브랜드 메뉴판', perm: 'brandMenus' },
   { k: 'orders', label: '주문 현황', perm: 'orderPreview' },
+  { k: 'rules', label: '주문 설정', perm: 'orderRules' },
   { k: 'share', label: '공유', perm: 'orderPreview' },
   { k: 'checkpw', label: '주문확인 비밀번호', perm: 'checkPassword' },
   { k: 'ai', label: 'AI 연결', admin: true },
@@ -297,6 +575,24 @@ const TABS = [
 const SORTS = [['new', '최신순'], ['old', '주문순'], ['name', '이름순'], ['menu', '메뉴순']];
 const TEMP_ORDER = { HOT: 0, ICE: 1, '-': 2 };
 const RELEASES = [
+  ['v3.6', '2026-10-28', [
+    '구글 시트 연결 시 로그인 · 비밀번호 변경 · 계정 관리를 Apps Script(서버)가 처리: 비밀번호 정보가 브라우저로 내려가지 않음',
+    '비밀번호를 계정마다 다른 솔트를 섞은 SHA-256 1,000회 반복으로 저장, 기존 비밀번호는 다음 로그인 때 자동 변환',
+    '서버에서 권한 확인: 메뉴 · 사진 · 브랜드 · 주문 설정 · 주문확인 비밀번호는 해당 권한이 있는 계정만, 계정 · 로그 · 백업 가져오기는 관리자만',
+    '주문 마감 · 취소 제한을 서버에서도 확인(스프레드시트 시간대 기준), 주문 형식 · 크기 검사, 입금 표시는 로그인 계정만',
+    '주문확인 비밀번호를 서버에서 확인하고 매일 서버에서 자동 교체, 권한 없는 사람에게는 비밀번호를 보내지 않음',
+    '로그인 5번 실패 시 그 아이디 10분 잠금, 주문확인 비밀번호 20번 실패 시 10분 잠금, 로그인 기록은 서버가 남김',
+    '로그인 유지 최대 6시간, Apps Script 코드가 이전 버전이면 안내와 새 코드 복사 버튼 표시',
+  ]],
+  ['v3.5', '2026-10-28', [
+    '설정 → 주문 설정 탭: 주문자가 「내 주문」에서 직접 취소할 수 있는지 켜고 끄기',
+    '매일 적용되는 주문 마감 시각, 「마감 후 주문 받지 않기」 · 「마감 후 취소 불가」 옵션',
+    '주문하기 화면에 마감 시각과 마감 안내 표시, 제한이 걸리면 취소 버튼 숨김',
+    '설정에 로그인한 관리자·사용자는 마감·취소 제한 없이 주문하고 취소, 주문확인 화면에서도 취소 가능',
+    '파일에 기본 구글 시트 연결(PRESET_CONN)을 넣어 모든 기기가 자동으로 같은 시트에 연결',
+    '계정 권한에 「주문 설정」 추가',
+    '정렬 버튼이 두 줄로 깨지던 문제, 직접 추가한 메뉴만 검색될 때 안내 문구, 시트를 불러오는 중 메뉴 직접 추가 문제 수정',
+  ]],
   ['v3.4', '2026-10-28', [
     '주문하기 화면에 「＋ 메뉴 직접 추가」 버튼: 메뉴판에 없는 메뉴를 이름·온도·가격으로 추가해 바로 주문',
     '직접 추가한 메뉴는 DB에 저장되어 모든 기기의 「직접 추가한 메뉴」 목록에서 다시 고를 수 있고, 삭제 가능',
@@ -454,9 +750,18 @@ async function sheetCall(conn, body) {
     return j;
   } finally { clearTimeout(timer); }
 }
+/* 서버(Apps Script)가 규칙에 따라 거절한 경우. 연결 문제가 아니므로 연결 끊김으로 표시하지 않음 */
+const RULE_ERR = ['closed', 'nocancel', 'forbidden', 'login', 'session', 'locked', 'bad-request'];
 function sheetErrText(e) {
   const m = e?.message || '';
   if (e?.name === 'AbortError') return '응답이 너무 늦습니다';
+  if (m === 'closed') return '주문이 마감되었습니다';
+  if (m === 'nocancel') return '주문 취소가 허용되지 않습니다. 담당자에게 요청해 주세요';
+  if (m === 'forbidden') return '이 계정에는 권한이 없습니다';
+  if (m === 'login') return '로그인한 계정만 할 수 있습니다';
+  if (m === 'session') return '로그인이 만료되었습니다. 다시 로그인해 주세요';
+  if (m === 'locked') return '여러 번 틀려 10분 동안 잠겼습니다';
+  if (m === 'bad-request') return '요청 형식이 올바르지 않습니다';
   if (m === 'token') return '토큰이 Apps Script의 TOKEN과 다릅니다';
   if (m === 'token-not-set') return 'Apps Script 코드의 TOKEN을 아직 바꾸지 않았습니다';
   if (m === 'http') return '웹 앱 응답이 올바르지 않습니다(주소가 /exec로 끝나는지 확인)';
@@ -467,8 +772,9 @@ function SheetDB(conn) {
   const CELL = 45000, PART = 20000;
   const base = new Map(), baseTs = new Map(); // 서버에서 받은 줄과 그 시각
   const over = new Map();                     // 서버 응답을 기다리는 내 쓰기 { json, n }
-  let subs = [], since = 0, polling = false, timer = 0, seq = 0, chain = Promise.resolve();
-  const st = { ready: false, err: '', last: 0 };
+  let subs = [], since = 0, polling = false, again = false, wantFull = false, timer = 0, seq = 0, chain = Promise.resolve();
+  const st = { ready: false, err: '', last: 0, old: false }; // old: Apps Script 코드가 v3.6 보안판이 아님
+  const lostSession = () => { api.sid = null; wantFull = true; try { api.onSession?.(); } catch (e) {} };
   const collOf = p => p.split('/')[0];
   const raw = p => over.has(p) ? over.get(p).json : (base.get(p) || '');
   function read(p) {
@@ -518,34 +824,45 @@ function SheetDB(conn) {
     const n = ++seq, touched = new Set(ops.map(([p]) => collOf(p)));
     ops.forEach(([p, json]) => over.set(p, { json, n }));
     setTimeout(() => touched.forEach(notify), 0);
-    const job = chain.then(() => sheetCall(conn, { op: 'write', ops: ops.map(([path, json]) => ({ path, json })) }));
+    const job = chain.then(() => api.call({ op: 'write', ops: ops.map(([path, json]) => ({ path, json })) }));
     chain = job.catch(() => {});
     return job.then(r => {
       ops.forEach(([p, json]) => { base.set(p, json); baseTs.set(p, r.now); if (over.get(p)?.n === n) over.delete(p); });
       st.err = ''; st.last = Date.now(); status();
     }, e => {
       ops.forEach(([p]) => { if (over.get(p)?.n === n) over.delete(p); });
-      touched.forEach(notify); st.err = sheetErrText(e); status();
+      touched.forEach(notify);
+      if (e.message === 'session') lostSession();
+      else if (!RULE_ERR.includes(e.message)) st.err = sheetErrText(e);
+      status();
       throw e;
     });
   }
   async function poll() {
-    if (polling) return;
+    if (polling) { again = true; return; }
     polling = true; clearTimeout(timer);
+    const full = wantFull || !since; wantFull = false;
     try {
-      const r = await sheetCall(conn, { op: 'read', since: since ? since - 5000 : 0 }); // 5초 겹쳐 읽어 쓰기 직후 줄을 놓치지 않음
-      const changed = new Set();
+      const r = await api.call({ op: 'read', since: full ? 0 : since - 5000 }); // 5초 겹쳐 읽어 쓰기 직후 줄을 놓치지 않음
+      const changed = new Set(), got = new Set();
       (r.rows || []).forEach(([p, json, ts]) => {
+        got.add(p);
         if ((baseTs.get(p) || 0) > ts || base.get(p) === json) return;
         base.set(p, json); baseTs.set(p, ts);
         if (!over.has(p)) changed.add(collOf(p));
       });
-      since = r.now; st.err = ''; st.last = Date.now();
+      // 전체 읽기: 로그인 · 로그아웃으로 더 이상 볼 수 없게 된 줄(계정 · 로그 등)은 지움
+      if (full) for (const p of [...base.keys()]) if (!got.has(p)) { base.delete(p); baseTs.delete(p); changed.add(collOf(p)); }
+      since = r.now; st.err = ''; st.last = Date.now(); st.old = r.v !== 2;
       if (!st.ready) { st.ready = true; notify('*'); } else changed.forEach(notify);
-    } catch (e) { st.err = sheetErrText(e); }
+    } catch (e) {
+      if (e.message === 'session') { lostSession(); again = true; }
+      else st.err = sheetErrText(e);
+    }
     finally {
       polling = false; status();
-      timer = setTimeout(poll, document.hidden ? SHEET_POLL_HIDDEN_MS : SHEET_POLL_MS);
+      if (again) { again = false; timer = setTimeout(poll, 0); }
+      else timer = setTimeout(poll, document.hidden ? SHEET_POLL_HIDDEN_MS : SHEET_POLL_MS);
     }
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
@@ -570,6 +887,9 @@ function SheetDB(conn) {
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const api = {
     kind: 'sheet', status: st, onStatus: null,
+    sid: null, onSession: null, // 로그인 세션(메모리에만 둠), 만료되면 onSession 호출
+    call: body => sheetCall(conn, { ...body, sid: api.sid || undefined }),
+    resync: () => { wantFull = true; poll(); }, // 로그인 · 로그아웃 뒤 볼 수 있는 데이터를 처음부터 다시 받음
     doc: p => { const i = p.indexOf('/'); return docRef(p.slice(0, i), p.slice(i + 1)); },
     collection: c => Object.assign(query(c, null, 0), {
       doc: id => docRef(c, id || newId()),
@@ -593,55 +913,15 @@ function SheetDB(conn) {
 }
 
 /* 구글 시트에 붙여넣을 Apps Script 코드(설정 → 데이터 · DB에서 복사) */
-const SHEET_SCRIPT = [
-  '// 카페 주문 - 구글 시트 DB (Apps Script)',
-  '// 1) TOKEN을 길고 임의의 문자열로 바꾸기  2) 배포 → 새 배포 → 웹 앱, 실행: 나, 액세스: 모든 사용자',
-  "var TOKEN = '여기에-길고-임의의-문자열';",
-  "var SHEET = 'docs';",
-  '',
-  'function sheet_() {',
-  '  var ss = SpreadsheetApp.getActiveSpreadsheet();',
-  '  var s = ss.getSheetByName(SHEET);',
-  "  if (!s) { s = ss.insertSheet(SHEET); s.appendRow(['path', 'json', 'ts']); s.setFrozenRows(1); }",
-  '  return s;',
-  '}',
-  'function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }',
-  '',
-  "function doGet() { return out_({ ok: true, app: 'cafe-order-sheet' }); }",
-  '',
-  'function doPost(e) {',
-  '  var req;',
-  "  try { req = JSON.parse(e.postData.contents); } catch (x) { return out_({ ok: false, error: 'bad-request' }); }",
-  "  if (TOKEN.indexOf('여기에') === 0) return out_({ ok: false, error: 'token-not-set' });",
-  "  if (req.token !== TOKEN) return out_({ ok: false, error: 'token' });",
-  '  var lock = LockService.getScriptLock(); lock.waitLock(20000);',
-  '  try {',
-  '    var s = sheet_(), now = Date.now(), last = s.getLastRow();',
-  "    if (req.op === 'read') {",
-  '      var since = Number(req.since) || 0, rows = [];',
-  '      var vals = last > 1 ? s.getRange(2, 1, last - 1, 3).getValues() : [];',
-  '      for (var i = 0; i < vals.length; i++) if (Number(vals[i][2]) > since) rows.push([String(vals[i][0]), String(vals[i][1]), Number(vals[i][2])]);',
-  '      return out_({ ok: true, now: now, rows: rows });',
-  '    }',
-  "    if (req.op === 'write') {",
-  '      var paths = last > 1 ? s.getRange(2, 1, last - 1, 1).getValues() : [], index = {}, add = [], addAt = {};',
-  '      for (var j = 0; j < paths.length; j++) index[String(paths[j][0])] = j + 2;',
-  '      (req.ops || []).forEach(function (op) {',
-  "        var p = String(op.path), row = [p, String(op.json || ''), now];",
-  '        if (index[p]) s.getRange(index[p], 1, 1, 3).setValues([row]);',
-  '        else if (addAt[p] !== undefined) add[addAt[p]] = row;',
-  '        else { addAt[p] = add.length; add.push(row); }',
-  '      });',
-  '      if (add.length) s.getRange(s.getLastRow() + 1, 1, add.length, 3).setValues(add);',
-  '      return out_({ ok: true, now: now });',
-  '    }',
-  '    return out_({ ok: true, now: now, rows: Math.max(0, last - 1) });',
-  '  } finally { lock.releaseLock(); }',
-  '}',
-].join('\n');
+const SHEET_SCRIPT = document.getElementById('gasCode').textContent.trim(); // 위쪽 <script type="text/plain" id="gasCode"> 블록
 
 const ADAPTERS = { local: LocalDB, sheet: SheetDB, remote: null }; // remote: 직접 만든 DB 어댑터
-let CONN = Object.assign({ type: 'local', url: '', token: '' }, lsGet('cafe-conn', null) || {});
+/* 연결 정보: 이 기기에서 직접 저장한 설정(own) > 파일의 PRESET_CONN > 이 브라우저 저장 */
+const PRESET = !!(PRESET_CONN.url && PRESET_CONN.token);
+const savedConn = lsGet('cafe-conn', null);
+let CONN = Object.assign({ type: 'local', url: '', token: '' },
+  savedConn?.own || !PRESET ? savedConn || {} : { type: 'sheet', url: PRESET_CONN.url, token: PRESET_CONN.token });
+const usingPreset = () => PRESET && !savedConn?.own;
 function pickDB() {
   if (window.CAFE_DB) return { db: window.CAFE_DB, mode: 'custom' };
   if (CONN.type === 'sheet' && CONN.url && CONN.token) return { db: SheetDB(CONN), mode: 'sheet' };
@@ -815,7 +1095,7 @@ function shrinkImage(file) { // 저장 공간을 아끼려고 JPEG 230KB 이하�
    ===================================================================== */
 const S = {
   db: null, dbMode: 'local', dbErr: false,
-  cfg: { menu: [], checkPw: '1234' }, img: null, accounts: null, brands: {}, orders: [], logs: [],
+  cfg: { menu: [], checkPw: '1234', allowCancel: true, deadline: '', lockOrder: true, lockCancel: true }, img: null, accounts: null, brands: {}, orders: [], logs: [],
   loaded: { cfg: false, orders: false },
   view: 'order', tab: 'menu', session: null, checkOk: false,
   sort: 'new', showNames: false, pick: null, q: '', busy: false, cooling: false,
@@ -824,10 +1104,27 @@ const S = {
   draft: [], dirty: false, reading: false,
 };
 const accounts = () => S.accounts || defAccounts();
-const me = () => S.session && accounts().find(a => a.id === S.session.id);
+// 구글 시트 모드: 계정 목록은 서버가 비밀번호 정보를 뺀 채 로그인한 사람에게만 보내므로, 받기 전에는 로그인 응답(info)을 씀
+const sheetMode = () => S.dbMode === 'sheet';
+const me = () => {
+  if (!S.session) return null;
+  if (sheetMode()) return (S.accounts || []).find(a => a.id === S.session.id) || S.session.info;
+  return accounts().find(a => a.id === S.session.id);
+};
 const isAdmin = () => me()?.role === 'admin';
 const can = perm => { const a = me(); return !!a && (a.role === 'admin' || a.perms?.[perm] !== false); };
 const visibleTabs = () => TABS.filter(t => t.admin ? isAdmin() : !t.perm || can(t.perm));
+
+/* 주문 마감: cfg.deadline('HH:MM')은 매일 같은 시각에 적용, 비어 있으면 마감 없음.
+   설정에 로그인한 계정(관리자·사용자)은 마감과 취소 제한에 상관없이 주문하고 취소할 수 있다. */
+const deadlineAt = () => {
+  const m = /^(\d{2}):(\d{2})$/.exec(S.cfg.deadline || ''); if (!m) return 0;
+  const d = new Date(); d.setHours(+m[1], +m[2], 0, 0); return d.getTime();
+};
+const isClosed = () => { const t = deadlineAt(); return !!t && Date.now() >= t; };
+const orderLocked = () => !me() && S.cfg.lockOrder && isClosed();
+const cancelBlock = () => me() ? '' : !S.cfg.allowCancel ? 'off' : S.cfg.lockCancel && isClosed() ? 'closed' : '';
+const CANCEL_MSG = { off: '주문 취소는 담당자에게 요청해 주세요.', closed: '주문이 마감되어 취소할 수 없습니다. 담당자에게 요청해 주세요.' };
 
 /* =====================================================================
    토스트 / 확인 대화상자
@@ -861,32 +1158,45 @@ function ask(msg, okLabel, danger) {
 const dbErr = () => { if (S.dbMode !== 'sheet') S.dbErr = true; paintBanner(); }; // 시트 연결 문제는 S.db.status로 따로 표시
 async function guard(p, failMsg) {
   try { await p; return true; } catch (e) {
+    if (sheetMode() && RULE_ERR.includes(e?.message)) { toast(sheetErrText(e) + '.', 'err'); return false; } // 서버가 규칙대로 거절함
     dbErr();
-    toast(failMsg || (S.dbMode === 'sheet' ? '구글 시트에 저장하지 못했습니다: ' + sheetErrText(e) : '저장하지 못했습니다. 저장 공간을 확인해 주세요.'), 'err');
+    toast(failMsg || (sheetMode() ? '구글 시트에 저장하지 못했습니다: ' + sheetErrText(e) : '저장하지 못했습니다. 저장 공간을 확인해 주세요.'), 'err');
     return false;
   }
 }
-const saveCfg = patch => S.db.doc('config/main').set({ ...S.cfg, ...patch });
+// 시트 모드에서는 바꾼 칸(__keys)만 서버가 반영하고 권한을 확인함. 가려진 칸(주문확인 비밀번호 등)은 그대로 남음
+const saveCfg = patch => S.db.doc('config/main').set({ ...S.cfg, ...patch, ...(sheetMode() ? { __keys: Object.keys(patch) } : {}) });
 /* 주문확인 비밀번호는 날짜가 바뀌면 4자리 난수로 자동 교체(직접 바꾼 비밀번호도 그날 하루만 유지) */
 const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
 const randomPw = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 10000).padStart(4, '0');
 let rotating = false;
 async function rotateCheckPw() {
-  if (!S.loaded.cfg || rotating || S.cfg.checkPwDate === todayKey()) return;
+  if (sheetMode() || !S.loaded.cfg || rotating || S.cfg.checkPwDate === todayKey()) return; // 시트 모드는 서버가 바꿈
   rotating = true;
   try { await saveCfg({ checkPw: randomPw(), checkPwDate: todayKey(), checkPwBy: 'auto' }); } catch (e) { dbErr(); }
   finally { rotating = false; }
 }
 const saveAccounts = list => S.db.doc('config/accounts').set({ list }).then(() => { S.accounts = list; });
-const logEvent = (id, type, ok) => { try { S.db.collection('logs').add({ ts: Date.now(), id: String(id || '(빈 값)').slice(0, 30), type, ok: !!ok }).catch(() => {}); } catch (e) {} };
+const logEvent = (id, type, ok) => { if (sheetMode()) return; /* 시트 모드는 서버가 기록 */ try { S.db.collection('logs').add({ ts: Date.now(), id: String(id || '(빈 값)').slice(0, 30), type, ok: !!ok }).catch(() => {}); } catch (e) {} };
 
 function init() {
   const pk = pickDB(); S.db = pk.db; S.dbMode = pk.mode;
-  if (S.dbMode === 'sheet') S.db.onStatus = () => { paintBanner(); paint('sheetState'); };
+  if (S.dbMode === 'sheet') {
+    S.db.onStatus = () => { paintBanner(); paint('sheetState'); paint('oldScript'); };
+    S.db.onSession = () => { // 서버에서 로그인이 만료됨
+      if (!S.session) return;
+      S.session = null; S.dirty = false;
+      toast('로그인이 만료되었습니다. 다시 로그인해 주세요.', 'err');
+      renderView();
+    };
+  }
   if (S.db === LocalDB && LocalDB.isEmpty() && localStorage.getItem(LEGACY_KEY)) importLegacy(true);
   S.db.doc('config/main').onSnapshot(s => {
     const d = s.exists ? s.data() : null;
-    S.cfg = { menu: Array.isArray(d?.menu) ? d.menu : [], checkPw: d?.checkPw || '1234', checkPwDate: d?.checkPwDate || '', checkPwBy: d?.checkPwBy || '' };
+    S.cfg = {
+      menu: Array.isArray(d?.menu) ? d.menu : [], checkPw: d?.checkPw || (sheetMode() ? '' : '1234'), checkPwDate: d?.checkPwDate || '', checkPwBy: d?.checkPwBy || '',
+      allowCancel: d?.allowCancel !== false, deadline: typeof d?.deadline === 'string' ? d.deadline : '', lockOrder: d?.lockOrder !== false, lockCancel: d?.lockCancel !== false,
+    };
     S.loaded.cfg = true; paintAll(); rotateCheckPw();
   }, dbErr);
   S.db.doc('config/image').onSnapshot(s => { S.img = s.exists ? s.data().data || null : null; paintAll(); }, dbErr);
@@ -946,6 +1256,7 @@ function paintBanner() {
   const st = S.dbMode === 'sheet' ? S.db.status : null;
   if (st && !st.ready) t = st.err ? `구글 시트에 연결하지 못했습니다: ${st.err}. 계속 다시 시도합니다. 설정 → 데이터 · DB에서 연결을 확인하세요.` : '데이터를 불러오는 중입니다…';
   else if (st && st.err) t = `구글 시트와 연결이 끊겼습니다: ${st.err}. 마지막 동기화 ${st.last ? hm(st.last) : '-'}. 다시 연결되면 자동으로 이어집니다.`;
+  else if (st && st.old) t = '연결된 Apps Script 코드가 v3.6 보안판이 아니라 로그인할 수 없습니다. 설정 화면의 「새 Apps Script 코드 복사」로 코드를 바꿔 다시 배포해 주세요.';
   else if (S.dbErr) t = '저장 중 문제가 생겼습니다. 브라우저 저장 공간이 가득 찼거나 막혀 있을 수 있습니다. 설정 → 데이터 · DB에서 백업을 받아 두세요.';
   else if (S.view === 'settings' && S.dbMode === 'fallback') t = 'DB 연결 정보(또는 어댑터)가 없어 이 브라우저 저장소를 사용하고 있습니다.';
   $('#banner').innerHTML = t ? `<div class="note warn" role="status">${esc(t)}</div>` : '';
@@ -970,6 +1281,7 @@ function renderView() {
 function orderView() {
   return `<section class="order">
     <div class="hero"><h2>무엇을 드시겠어요?</h2><p>이름을 적고, 메뉴판에서 원하는 메뉴의 HOT 또는 ICE를 눌러 고른 뒤 주문하세요.</p></div>
+    <div class="notice" data-paint="orderNotice"></div>
     <div class="card"><label class="lbl" for="oname">주문자 이름</label>
       <input id="oname" class="inp name-inp" maxlength="20" autocomplete="off" placeholder="예) 김민수" value="${esc(S.name)}"></div>
     <div data-paint="mine"></div>
@@ -984,6 +1296,21 @@ function orderView() {
     <div class="obar" data-paint="orderBar"></div>
   </section>`;
 }
+PAINT.orderNotice = el => {
+  if (!S.loaded.cfg) { el.innerHTML = ''; return; }
+  const dl = esc(S.cfg.deadline), staff = me();
+  let html = '';
+  if (deadlineAt()) {
+    if (isClosed()) {
+      const rest = [S.cfg.lockOrder && '더 이상 주문할 수 없습니다.', S.cfg.allowCancel && S.cfg.lockCancel && '주문 취소도 할 수 없습니다.'].filter(Boolean).join(' ');
+      html += `<div class="note ${S.cfg.lockOrder ? 'err' : 'warn'}" role="status">오늘 주문은 ${dl}에 마감되었습니다. ${rest}</div>`;
+    } else {
+      html += `<div class="note" role="status">오늘 주문 마감 <b class="num">${dl}</b>${S.cfg.allowCancel && S.cfg.lockCancel ? ' · 취소는 마감 전까지만 할 수 있습니다' : ''}</div>`;
+    }
+  }
+  if (staff) html += `<div class="note ok" role="status">${esc(staff.id)}(으)로 로그인되어 있어 마감·취소 제한 없이 주문하고 취소할 수 있습니다.</div>`;
+  el.innerHTML = html;
+};
 const orderMenu = () => S.cfg.menu.concat(S.custom); // 주문 화면에서 고를 수 있는 전체 메뉴
 const findPick = () => S.pick && orderMenu().find(x => x.id === S.pick);
 const customRef = id => S.db.collection('custom').doc(id);
@@ -1014,7 +1341,11 @@ PAINT.menuGrid = el => {
   const all = menuGroups();
   if (!all.length) { el.innerHTML = `<div class="empty">아직 등록된 메뉴가 없습니다.<br>설정 → 메뉴 관리에서 메뉴판 사진이나 CSV로 메뉴를 등록하세요.${S.custom.length ? '' : '<br>원하는 메뉴가 있으면 아래 「＋ 메뉴 직접 추가」로 주문할 수 있습니다.'}</div>`; return; }
   const q = normName(S.q), groups = q ? all.filter(g => normName(g.name).includes(q)) : all;
-  if (!groups.length) { el.innerHTML = `<div class="empty">'${esc(S.q)}'에 맞는 메뉴가 없습니다. 아래 「＋ 메뉴 직접 추가」로 주문할 수 있습니다.</div>`; return; }
+  if (!groups.length) {
+    const hitCustom = S.custom.some(m => normName(m.name).includes(q)); // 직접 추가한 메뉴에서 찾았으면 아래 목록만 보여 줌
+    el.innerHTML = hitCustom ? '' : `<div class="empty">'${esc(S.q)}'에 맞는 메뉴가 없습니다. 아래 「＋ 메뉴 직접 추가」로 주문할 수 있습니다.</div>`;
+    return;
+  }
   el.innerHTML = menuListHtml(groups, '메뉴');
 };
 function menuListHtml(groups, head, custom) {
@@ -1035,6 +1366,11 @@ PAINT.customGrid = el => {
 PAINT.orderBar = el => {
   if (!orderMenu().length) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
+  if (orderLocked()) {
+    el.innerHTML = `<div class="sel"><b>오늘 주문이 마감되었습니다</b><small>마감 ${esc(S.cfg.deadline)} · 추가 주문은 담당자에게 요청해 주세요</small></div>
+      <button class="btn primary lg" disabled>마감</button>`;
+    return;
+  }
   const m = findPick();
   if (S.pick && !m) S.pick = null;
   const who = S.name.trim() ? `${esc(S.name.trim())}님` : '<span style="color:var(--bad)">이름을 입력해 주세요</span>';
@@ -1048,14 +1384,16 @@ PAINT.mine = el => {
   const nm = normName(S.name);
   const mine = nm && S.loaded.orders ? S.orders.filter(o => normName(o.name) === nm).sort((a, b) => (a.ts || 0) - (b.ts || 0)) : [];
   if (!mine.length) { el.innerHTML = ''; return; }
+  const block = cancelBlock();
   el.innerHTML = `<div class="mine"><div class="mine-head"><h3>${esc(S.name.trim())}님의 주문</h3><span class="num" style="font-weight:700">${mine.length}건 · ${won(sum(mine))}</span></div>
-    <p class="hint" style="margin-bottom:6px">이미 주문한 내역이 있어요. 추가로 주문하면 함께 집계됩니다.</p>` +
+    <p class="hint" style="margin-bottom:6px">이미 주문한 내역이 있어요. 추가로 주문하면 함께 집계됩니다.${block ? ' ' + CANCEL_MSG[block] : ''}</p>` +
     mine.map(o => `<div class="mine-it"><span class="t">${hms(o.ts)}</span><span>${labelHtml(o)} ${o.paid ? '<span class="badge good">입금완료</span>' : ''}</span><span class="num" style="font-weight:700">${won(o.price)}</span>
-      <button class="btn sm" data-act="cancel" data-id="${esc(o.id)}">취소</button></div>`).join('') + '</div>';
+      ${block ? '<span></span>' : `<button class="btn sm" data-act="cancel" data-id="${esc(o.id)}">취소</button>`}</div>`).join('') + '</div>';
 };
 async function submitOrder() {
   const inp = $('#oname'), name = (inp ? inp.value : S.name).trim();
   if (!name) { toast('이름을 먼저 입력해 주세요.', 'err'); if (inp) { inp.focus(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); } return; }
+  if (orderLocked()) { toast(`오늘 주문은 ${S.cfg.deadline}에 마감되었습니다.`, 'err'); paint('orderBar'); paint('orderNotice'); return; }
   const m = findPick();
   if (!m) { toast('메뉴를 먼저 골라 주세요.', 'err'); return; }
   if (S.busy || S.cooling) return;
@@ -1077,7 +1415,7 @@ function checkView() {
   if (!S.checkOk && !viaLogin) return `<form id="f-check" class="card narrow stack"><div><h2>주문확인</h2><p class="hint">주문 내역을 보려면 비밀번호를 입력하세요.</p></div>
     <div><label class="lbl" for="cpw">비밀번호</label><input id="cpw" class="inp" type="password" autocomplete="off" autofocus></div>
     <div id="chkMsg"></div><button class="btn primary lg" type="submit">확인</button></form>`;
-  return `<div class="page-head"><div><h2>주문 내역</h2>${viaLogin ? `<p class="hint">설정에 ${esc(S.session.id)}(으)로 로그인되어 있어 비밀번호 없이 열었습니다.</p>` : ''}</div><div class="row">
+  return `<div class="page-head"><div><h2>주문 내역</h2>${viaLogin ? `<p class="hint">설정에 ${esc(S.session.id)}(으)로 로그인되어 있어 비밀번호 없이 열었습니다. 주문을 취소할 수 있습니다.</p>` : ''}</div><div class="row">
       <button class="btn sm" data-act="shareText">💬 텍스트 공유</button><button class="btn sm" data-act="shareImage">🖼️ 이미지 공유</button>${viaLogin ? '' : '<button class="btn sm" data-act="lock">🔒 잠금</button>'}</div></div>
     <div data-paint="checkBody"></div>`;
 }
@@ -1112,18 +1450,19 @@ function summaryTable(list) {
     rows.map(v => `<tr><td>${labelHtml(v)}${S.showNames ? `<span class="who">${v.names.map(esc).join(', ')}</span>` : ''}</td><td class="r p">${v.count}</td><td class="r p">${won(v.unit)}</td><td class="r p">${won(v.total)}</td></tr>`).join('') +
     `</tbody></table></div></div>`;
 }
-function ordersTable(list, admin) {
+function ordersTable(list, mode) { // mode: 'admin'(입금 체크·삭제) | 'cancel'(취소 버튼) | 없음(보기만)
   if (!list.length) return '<div class="empty">아직 들어온 주문이 없습니다.</div>';
-  return `<div class="scroll"><table class="tbl"><thead><tr><th>시간</th><th>이름</th><th>메뉴</th><th class="r">가격</th><th>입금</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>` +
+  const admin = mode === 'admin', extra = admin || mode === 'cancel';
+  return `<div class="scroll"><table class="tbl"><thead><tr><th>시간</th><th>이름</th><th>메뉴</th><th class="r">가격</th><th>입금</th>${extra ? '<th></th>' : ''}</tr></thead><tbody>` +
     sortOrders(list).map(o => `<tr class="${o.paid ? 'paid' : ''}"><td class="t" title="${esc(fullT(o.ts))}">${hm(o.ts)}</td><td class="dim">${esc(o.name)}</td><td class="dim">${labelHtml(o)}</td><td class="r p dim">${won(o.price)}</td>
       <td>${admin ? `<input type="checkbox" data-act="paid" data-id="${esc(o.id)}" aria-label="${esc(o.name)} 입금 확인" ${o.paid ? 'checked' : ''}>` : `<span class="badge ${o.paid ? 'good' : ''}">${o.paid ? '입금완료' : '미입금'}</span>`}</td>
-      ${admin ? `<td class="r"><button class="btn sm danger" data-act="delOrder" data-id="${esc(o.id)}">삭제</button></td>` : ''}</tr>`).join('') +
+      ${admin ? `<td class="r"><button class="btn sm danger" data-act="delOrder" data-id="${esc(o.id)}">삭제</button></td>` : extra ? `<td class="r"><button class="btn sm" data-act="cancel" data-id="${esc(o.id)}">취소</button></td>` : ''}</tr>`).join('') +
     '</tbody></table></div>';
 }
 PAINT.checkBody = el => {
   if (!S.loaded.orders) { el.innerHTML = '<div class="empty">주문을 불러오는 중입니다…</div>'; return; }
   el.innerHTML = kpis(S.orders) + summaryTable(S.orders) +
-    `<div class="card"><div class="sec-head"><h3>주문 목록</h3>${sortSeg()}</div>${ordersTable(S.orders, false)}</div>`;
+    `<div class="card"><div class="sec-head"><h3>주문 목록</h3>${sortSeg()}</div>${ordersTable(S.orders, me() ? 'cancel' : '')}</div>`;
 };
 
 /* ---------------- 공유 / 내보내기 ---------------- */
@@ -1183,7 +1522,7 @@ function settingsView() {
   if (!S.session) return `<form id="f-login" class="card narrow stack"><div><h2>설정 로그인</h2><p class="hint">관리자 또는 사용자 계정으로 로그인하세요.</p></div>
     <div><label class="lbl" for="lid">아이디</label><input id="lid" class="inp" autocomplete="username" autocapitalize="none" autofocus></div>
     <div><label class="lbl" for="lpw">비밀번호</label><input id="lpw" class="inp" type="password" autocomplete="current-password"></div>
-    <div id="loginMsg"></div><button class="btn primary lg" type="submit">로그인</button></form>`;
+    <div id="loginMsg"></div><button class="btn primary lg" type="submit">로그인</button><div data-paint="oldScript"></div></form>`;
   if (me()?.must) return `<form id="f-must" class="card narrow stack"><div><h2>비밀번호 변경</h2><p class="hint">처음 로그인하셨거나 비밀번호가 초기화되었습니다. 새 비밀번호를 정해 주세요. (4자 이상, 1234 제외)</p></div>
     <div><label class="lbl" for="np1">새 비밀번호</label><input id="np1" class="inp" type="password" autocomplete="new-password" autofocus></div>
     <div><label class="lbl" for="np2">새 비밀번호 확인</label><input id="np2" class="inp" type="password" autocomplete="new-password"></div>
@@ -1206,6 +1545,14 @@ function settingsView() {
     <section id="tabBody">${(TAB_HTML[S.tab] || (() => ''))()}</section>
   </div>`;
 }
+PAINT.oldScript = el => { // 이전 Apps Script 코드로는 로그인할 수 없으니, 로그인 화면에서 새 코드를 바로 복사할 수 있게 함
+  if (!(sheetMode() && S.db.status.old)) { el.innerHTML = ''; return; }
+  if (el.childElementCount) return;
+  el.innerHTML = `<div class="note warn">연결된 Apps Script 코드가 이전 버전입니다. 아래 버튼으로 새 코드를 복사해 Apps Script에 붙여넣고, <b>TOKEN</b>을 지금 쓰는 값으로 바꾼 뒤 <b>배포 → 배포 관리 → 수정 → 버전: 새 버전</b>으로 다시 배포하세요.</div>
+    <div class="row" style="margin-top:10px"><button class="btn" type="button" data-act="copyScript">새 Apps Script 코드 복사</button></div>
+    <textarea id="scriptBox" class="inp" readonly hidden rows="10" spellcheck="false" style="margin-top:10px;font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre">${esc(SHEET_SCRIPT)}</textarea>
+    <div id="scriptMsg"></div>`;
+};
 PAINT.stabs = el => {
   el.innerHTML = visibleTabs().map(t => `<button class="stab" role="tab" data-act="tab" data-v="${t.k}" aria-selected="${S.tab === t.k}">${t.label}${t.k === 'menu' && S.dirty ? '<span class="dot" title="저장하지 않은 변경"></span>' : ''}</button>`).join('');
 };
@@ -1233,6 +1580,15 @@ const TAB_HTML = {
       <div id="brandMsg"></div></div>
     <div class="card"><h3>저장된 메뉴판</h3><div data-paint="brandList" style="margin-top:10px"></div></div>`,
   orders: () => `<div data-paint="ordersAdmin"></div>`,
+  rules: () => `
+    <form id="f-rules" class="card stack"><div><h3>주문 취소 · 마감</h3><p class="hint">주문하기 화면의 「내 주문」에서 주문자가 직접 취소할 수 있는지, 하루 주문을 몇 시에 마감할지 정합니다. 설정에 로그인한 관리자·사용자는 이 설정과 상관없이 주문하고 취소할 수 있습니다.</p></div>
+      <label class="check"><input type="checkbox" id="ruCancel" ${S.cfg.allowCancel ? 'checked' : ''}> 주문자가 「내 주문」에서 직접 취소할 수 있게 하기</label>
+      <div><label class="lbl" for="ruDl">주문 마감 시각 (매일 같은 시각 적용 · 비우면 마감 없음)</label>
+        <div class="row"><input id="ruDl" class="inp" type="time" value="${esc(S.cfg.deadline)}" style="width:auto"><button class="btn sm" type="button" data-act="dlClear">마감 없음</button></div></div>
+      <label class="check"><input type="checkbox" id="ruLockOrder" ${S.cfg.lockOrder ? 'checked' : ''}> 마감 후에는 주문 받지 않기</label>
+      <label class="check"><input type="checkbox" id="ruLockCancel" ${S.cfg.lockCancel ? 'checked' : ''}> 마감 후에는 취소 불가</label>
+      <div data-paint="rulesState"></div><div id="rulesMsg"></div>
+      <div><button class="btn primary" type="submit">저장</button></div></form>`,
   share: () => `<div data-paint="shareBox"></div>`,
   checkpw: () => `
     <div class="card"><h3>오늘의 주문확인 비밀번호</h3><p class="hint">주문확인 화면에 들어갈 때 쓰는 비밀번호입니다. 매일 새 4자리 숫자로 자동으로 바뀌니, 주문 내역을 함께 볼 사람에게 그날 비밀번호를 알려 주세요.</p>
@@ -1255,10 +1611,13 @@ const TAB_HTML = {
     <div class="card"><h3>백업 / 이동</h3><p class="hint">메뉴·사진·주문·계정·로그·브랜드 메뉴판을 JSON 파일 하나로 내보내고 가져옵니다. 다른 기기로 옮기거나 나중에 DB로 옮길 때도 이 파일을 씁니다.</p>
       <div class="row"><button class="btn primary" data-act="backup">전체 백업 내보내기</button><label class="btn" for="dbImport">백업 가져오기</label>
         <select id="impMode" class="inp s" style="width:auto" aria-label="가져오기 방식"><option value="merge">합치기 (같은 항목은 덮어씀)</option><option value="replace">전부 바꾸기</option></select></div>
-      <div id="dbMsg"></div></div>
+      <div id="dbMsg"></div>
+      ${sheetMode() ? '<p class="hint" style="margin-top:8px">구글 시트에서 내보낸 백업에는 비밀번호 정보가 들어 있지 않습니다. 가져올 때 같은 계정은 지금 비밀번호를 그대로 쓰고, 새 계정은 1234로 시작합니다. 백업 가져오기는 관리자만 할 수 있습니다.</p>' : ''}</div>
     <div class="card"><h3>이전 버전 데이터</h3><p class="hint">v1.x · v2.0(단일 파일 버전)에서 쓰던 이 브라우저의 메뉴·주문·계정·브랜드 메뉴판을 가져와 합칩니다. 처음 실행할 때 저장된 데이터가 없으면 자동으로 가져옵니다.</p>
       <button class="btn" data-act="legacy" ${localStorage.getItem(LEGACY_KEY) ? '' : 'disabled'}>이전 버전 데이터 가져오기</button></div>
-    <form id="f-conn" class="card stack"><div><h3>DB 연결</h3><p class="hint">여러 기기에서 같은 메뉴·주문·비밀번호를 쓰려면 구글 시트에 연결하세요. 연결 정보는 이 브라우저에만 저장되므로 기기마다 한 번씩 입력합니다.</p></div>
+    <form id="f-conn" class="card stack"><div><h3>DB 연결</h3><p class="hint">${PRESET
+      ? '이 파일에는 기본 구글 시트 연결(PRESET_CONN)이 들어 있어, 연결 정보를 따로 입력하지 않은 기기는 자동으로 같은 시트에 연결됩니다. 여기서 저장하면 이 기기만 그 설정을 따릅니다.'
+      : '여러 기기에서 같은 메뉴·주문·비밀번호를 쓰려면 구글 시트에 연결하세요. 여기서 저장한 연결 정보는 이 브라우저에만 남습니다. 모든 기기를 한 번에 연결하려면 HTML 파일 맨 위 PRESET_CONN에 웹 앱 URL과 토큰을 넣으세요.'}</p></div>
       <div data-paint="sheetState"></div>
       <div><label class="lbl" for="cnType">저장 방식</label><select id="cnType" class="inp">
         <option value="local" ${CONN.type === 'local' ? 'selected' : ''}>이 브라우저 (단독 실행)</option>
@@ -1267,7 +1626,7 @@ const TAB_HTML = {
       <div><label class="lbl" for="cnUrl">웹 앱 URL</label><input id="cnUrl" class="inp" value="${esc(CONN.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
       <div><label class="lbl" for="cnTok">토큰 (Apps Script의 TOKEN)</label><div class="row"><input id="cnTok" class="inp grow" type="password" value="${esc(CONN.token)}" autocomplete="off" style="width:auto"><button class="btn" type="button" data-act="peek" data-for="cnTok">보기</button></div></div>
       <div id="cnMsg"></div>
-      <div class="row"><button class="btn primary" type="submit">저장하고 다시 연결</button><button class="btn" type="button" data-act="connTest">연결 테스트</button></div>
+      <div class="row"><button class="btn primary" type="submit">저장하고 다시 연결</button><button class="btn" type="button" data-act="connTest">연결 테스트</button>${PRESET && savedConn?.own ? '<button class="btn" type="button" data-act="connPreset">파일 기본 연결로 되돌리기</button>' : ''}</div>
       <p class="hint">저장하면 페이지를 새로 불러옵니다. 구글 시트로 바꾸면 계정도 시트 기준이 되므로 다시 로그인해 주세요(빈 시트면 처음 계정 admin / 1234).</p></form>
     <div class="card stack"><div><h3>구글 시트 준비하기</h3>
       <ol class="hint" style="margin:6px 0 0;padding-left:20px;line-height:1.8">
@@ -1275,12 +1634,13 @@ const TAB_HTML = {
         <li><b>확장 프로그램 → Apps Script</b>를 열고, 기존 코드를 지운 뒤 아래 코드를 붙여넣습니다.</li>
         <li>코드 첫 부분의 <code>TOKEN</code> 값을 길고 임의의 문자열로 바꾸고 저장합니다.</li>
         <li><b>배포 → 새 배포 → 웹 앱</b>, 실행 계정 「나」, 액세스 권한 「모든 사용자」로 배포하고 권한을 승인합니다.</li>
-        <li>나온 웹 앱 URL과 TOKEN을 위 칸에 넣고 「연결 테스트」 후 저장합니다.</li>
+        <li>나온 웹 앱 URL과 TOKEN을 HTML 파일 맨 위 <code>PRESET_CONN</code>에 넣거나(모든 기기), 위 칸에 넣고 「연결 테스트」 후 저장합니다(이 기기만).</li>
       </ol></div>
       <div class="row"><button class="btn primary" type="button" data-act="copyScript">Apps Script 코드 복사</button><button class="btn" type="button" data-act="showScript">코드 보기</button></div>
       <textarea id="scriptBox" class="inp" readonly hidden rows="14" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre">${esc(SHEET_SCRIPT)}</textarea>
       <div id="scriptMsg"></div>
-      <p class="hint">코드를 고친 뒤에는 <b>배포 관리 → 수정 → 새 버전</b>으로 다시 배포해야 반영됩니다.</p></div>
+      <p class="hint">코드를 고친 뒤에는 <b>배포 관리 → 수정 → 새 버전</b>으로 다시 배포해야 반영됩니다(웹 앱 URL은 그대로).</p>
+      <p class="hint">v3.6부터 로그인 · 비밀번호 · 권한 · 주문 마감을 Apps Script가 확인합니다. v3.5 이하에서 배포한 코드를 쓰고 있다면 이 새 코드로 바꿔 다시 배포해야 로그인할 수 있습니다. 기존 계정 비밀번호는 그대로 쓸 수 있고, 처음 로그인할 때 더 안전한 방식으로 바뀝니다.</p></div>
     <div class="card"><h3>이 브라우저 데이터를 시트로 옮기기</h3><p class="hint">구글 시트에 연결한 뒤, 전에 이 브라우저에만 저장해 둔 메뉴·사진·주문·계정·브랜드 메뉴판을 시트에 올립니다. 같은 항목은 덮어씁니다.</p>
       <button class="btn" type="button" data-act="sheetUpload" ${S.dbMode === 'sheet' && !LocalDB.isEmpty() ? '' : 'disabled'}>이 브라우저 데이터를 시트로 올리기</button><div id="upMsg"></div></div>`,
   accounts: () => `
@@ -1382,7 +1742,7 @@ PAINT.brandList = el => {
     '</tbody></table></div>' : '<div class="empty">저장된 브랜드 메뉴판이 없습니다.</div>';
 };
 
-/* 주문 현황 / 공유 */
+/* 주문 현황 / 주문 설정 / 공유 */
 PAINT.ordersAdmin = el => {
   if (!S.loaded.orders) { el.innerHTML = '<div class="empty">주문을 불러오는 중입니다…</div>'; return; }
   const agg = aggregate(S.orders);
@@ -1393,7 +1753,13 @@ PAINT.ordersAdmin = el => {
       <button class="btn sm danger" data-act="delAll" ${S.orders.length ? '' : 'disabled'}>주문 전체 삭제</button></div>
       <p class="hint" style="margin-top:8px">전체 삭제 전에 CSV와 이미지가 자동으로 저장됩니다.</p></div>` +
     (agg.length ? `<div class="card"><h3 style="margin-bottom:10px">메뉴별 현황</h3><div class="chips">${agg.map(v => `<div class="mchip">${labelHtml(v)} · <b>${v.count}개</b> · ${won(v.total)}</div>`).join('')}</div></div>` : '') +
-    `<div class="card"><div class="sec-head"><h3>주문 목록</h3>${sortSeg()}</div>${ordersTable(S.orders, true)}</div>`;
+    `<div class="card"><div class="sec-head"><h3>주문 목록</h3>${sortSeg()}</div>${ordersTable(S.orders, 'admin')}</div>`;
+};
+PAINT.rulesState = el => {
+  const dl = esc(S.cfg.deadline);
+  const when = !deadlineAt() ? '마감 시각이 없어 주문을 언제나 받습니다.' : isClosed() ? `오늘은 ${dl}에 마감되었습니다.` : `오늘 ${dl}에 마감됩니다.`;
+  const cancel = !S.cfg.allowCancel ? '허용 안 함' : deadlineAt() && S.cfg.lockCancel ? '마감 전까지 허용' : '허용';
+  el.innerHTML = `<div class="note" style="margin-top:0">지금 저장된 설정: ${when} 주문자 직접 취소 ${cancel}.</div>`;
 };
 PAINT.shareBox = el => {
   const list = sortOrders(S.orders);
@@ -1406,10 +1772,10 @@ PAINT.shareBox = el => {
 };
 PAINT.sheetState = el => {
   if (S.dbMode !== 'sheet') { el.innerHTML = `<div class="note">현재: ${S.dbMode === 'local' ? '이 브라우저에만 저장 중' : S.dbMode === 'fallback' ? '연결 정보가 없어 이 브라우저에 저장 중' : '외부 DB 어댑터 사용 중'}</div>`; return; }
-  const st = S.db.status;
-  el.innerHTML = !st.ready ? `<div class="note ${st.err ? 'err' : ''}">${st.err ? '연결 실패: ' + esc(st.err) : '구글 시트에 연결하는 중…'}</div>`
-    : st.err ? `<div class="note warn">연결 끊김: ${esc(st.err)} · 마지막 동기화 ${hms(st.last)}</div>`
-    : `<div class="note ok">구글 시트에 연결됨 · 마지막 동기화 ${hms(st.last)} · ${SHEET_POLL_MS / 1000}초마다 확인</div>`;
+  const st = S.db.status, src = usingPreset() ? '파일 기본 연결' : '이 기기에서 저장한 연결';
+  el.innerHTML = !st.ready ? `<div class="note ${st.err ? 'err' : ''}">${st.err ? '연결 실패: ' + esc(st.err) : '구글 시트에 연결하는 중…'} (${src})</div>`
+    : st.err ? `<div class="note warn">연결 끊김: ${esc(st.err)} · 마지막 동기화 ${hms(st.last)} (${src})</div>`
+    : `<div class="note ok">구글 시트에 연결됨 (${src}) · 마지막 동기화 ${hms(st.last)} · ${SHEET_POLL_MS / 1000}초마다 확인</div>`;
 };
 PAINT.checkPwNow = el => {
   const by = S.cfg.checkPwBy === 'manual' ? '오늘 직접 바꾼 비밀번호' : '오늘 자동으로 만든 비밀번호';
@@ -1440,6 +1806,19 @@ PAINT.logList = el => {
 /* =====================================================================
    이벤트
    ===================================================================== */
+/* 시트 모드의 계정 관리(관리자만): 비밀번호 해시는 서버가 만들고 저장함 */
+async function acctOp(body, okMsg, msgSel) {
+  try {
+    await S.db.call({ op: 'acct', ...body }); S.db.poll();
+    if (msgSel) note(msgSel, okMsg, 'ok'); else toast(okMsg, 'ok');
+    return true;
+  } catch (e) {
+    if (e.message === 'session') S.db.onSession?.();
+    const t = { dupid: '이미 있는 아이디입니다.', badid: '아이디는 2~20자의 글자, 숫자, _ 만 쓸 수 있습니다.', noacct: '이미 삭제된 계정입니다.' }[e.message] || '처리하지 못했습니다: ' + sheetErrText(e);
+    if (msgSel) note(msgSel, t, 'err'); else toast(t, 'err');
+    return false;
+  }
+}
 const ACT = {
   theme() { const order = ['auto', 'light', 'dark'], cur = lsGet('cafe-theme', 'auto'); setTheme(order[(order.indexOf(cur) + 1) % 3]); },
   photo() { if (!S.img) return; $('#photoImg').src = S.img; $('#photoDlg').showModal ? $('#photoDlg').showModal() : window.open(S.img); },
@@ -1459,9 +1838,12 @@ const ACT = {
   },
   pick(t) { S.pick = S.pick === t.dataset.id ? null : t.dataset.id; paint('menuGrid'); paint('customGrid'); paint('orderBar'); },
   submit: submitOrder,
-  async cancel(t) {
+  async cancel(t) { // 주문하기 「내 주문」과, 로그인한 상태의 주문확인 화면에서 사용
     const o = S.orders.find(x => x.id === t.dataset.id); if (!o) return;
-    if (!await ask(`${label(o)} 주문(${hms(o.ts)})을 취소할까요?`, '주문 취소', true)) return;
+    const blocked = () => { const b = cancelBlock(); if (b) { toast(CANCEL_MSG[b], 'err'); paint('mine'); paint('orderNotice'); } return !!b; };
+    if (blocked()) return;
+    if (!await ask(`${o.name}님의 ${label(o)} 주문(${hms(o.ts)})을 취소할까요?`, '주문 취소', true)) return;
+    if (blocked()) return; // 확인창을 띄워 둔 사이 마감될 수 있음
     if (await guard(S.db.doc('orders/' + o.id).delete())) toast('주문을 취소했습니다.');
   },
   lock() { S.checkOk = false; renderView(); },
@@ -1470,6 +1852,7 @@ const ACT = {
     catch (e) { toast('자동 복사가 막혀 있습니다. 화면의 숫자를 직접 알려 주세요.', 'err'); }
   },
   randomCheckPw() { $('#ncp').value = randomPw(); $('#ncp').focus(); },
+  dlClear() { $('#ruDl').value = ''; },
   sort(t) { S.sort = t.dataset.v; paint('checkBody'); paint('ordersAdmin'); paint('shareBox'); },
   names(t) { S.showNames = t.checked; paint('checkBody'); },
   shareText: doShareText,
@@ -1487,6 +1870,7 @@ const ACT = {
   },
   async logout() {
     if (S.dirty && !await ask('메뉴표에 저장하지 않은 변경이 있습니다. 버리고 로그아웃할까요?', '버리고 로그아웃', true)) return;
+    if (sheetMode() && S.db.sid) { S.db.call({ op: 'logout' }).catch(() => {}); S.db.sid = null; S.db.resync(); } // 계정 · 로그 등을 화면에서 지움
     S.session = null; S.dirty = false; renderView();
   },
   tab(t) { S.tab = t.dataset.v; renderView(); window.scrollTo({ top: 0 }); },
@@ -1495,12 +1879,22 @@ const ACT = {
     if ($('#cnType').value !== 'sheet') return note('#cnMsg', '저장 방식을 「구글 시트」로 고른 뒤 테스트해 주세요.', 'err');
     if (!conn.url || !conn.token) return note('#cnMsg', '웹 앱 URL과 토큰을 입력해 주세요.', 'err');
     note('#cnMsg', '연결을 확인하는 중입니다…');
-    try { const r = await sheetCall(conn, { op: 'ping' }); note('#cnMsg', `연결 성공: 시트에 저장된 줄 ${r.rows || 0}개`, 'ok'); }
+    try {
+      const r = await sheetCall(conn, { op: 'ping' });
+      if (r.v !== 2) note('#cnMsg', `연결은 되었지만 Apps Script 코드가 이전 버전입니다. 아래 「구글 시트 준비하기」의 새 코드로 바꿔 다시 배포해 주세요. (저장된 줄 ${r.rows || 0}개)`, 'warn');
+      else note('#cnMsg', `연결 성공: 시트에 저장된 줄 ${r.rows || 0}개 · v3.6 보안판 코드`, 'ok');
+    }
     catch (e) { note('#cnMsg', '연결 실패: ' + sheetErrText(e), 'err'); }
+  },
+  async connPreset() {
+    if (!await ask('이 기기에서 저장한 연결 정보를 지우고 파일에 들어 있는 기본 연결을 사용할까요? 페이지를 새로 불러옵니다.', '되돌리기')) return;
+    try { localStorage.removeItem('cafe-conn'); } catch (e) {}
+    note('#cnMsg', '기본 연결로 되돌렸습니다. 다시 연결합니다…', 'ok');
+    setTimeout(() => location.reload(), 700);
   },
   async copyScript() {
     try { await navigator.clipboard.writeText(SHEET_SCRIPT); note('#scriptMsg', 'Apps Script 코드를 복사했습니다. TOKEN 값을 꼭 바꿔 주세요.', 'ok'); }
-    catch (e) { $('#scriptBox').hidden = false; $('#scriptBox').select(); note('#scriptMsg', '자동 복사가 막혀 있습니다. 선택된 코드를 Ctrl+C로 복사해 주세요.', 'err'); }
+    catch (e) { const b = $('#scriptBox'); if (b) { b.hidden = false; b.select(); } note('#scriptMsg', '자동 복사가 막혀 있습니다. 선택된 코드를 Ctrl+C로 복사해 주세요.', 'err'); }
   },
   showScript() { const b = $('#scriptBox'); b.hidden = !b.hidden; },
   async sheetUpload() {
@@ -1586,16 +1980,19 @@ const ACT = {
     const i = +t.dataset.i, perms = {};
     $$(`[data-perm="${i}"]`).forEach(c => { perms[c.dataset.key] = c.checked; });
     const list = accounts().map((a, j) => j === i ? { ...a, perms } : a);
+    if (sheetMode()) return acctOp({ action: 'perms', id: list[i].id, perms }, `${list[i].id} 계정의 권한을 저장했습니다.`);
     if (await guard(saveAccounts(list))) toast(`${list[i].id} 계정의 권한을 저장했습니다.`, 'ok');
   },
   async acctReset(t) {
     const a = accounts()[+t.dataset.i];
     if (!await ask(`${a.id} 계정의 비밀번호를 1234로 초기화할까요? 다음 로그인 때 새 비밀번호를 정하게 됩니다.`, '초기화')) return;
+    if (sheetMode()) return acctOp({ action: 'reset', id: a.id }, `${a.id} 비밀번호를 초기화했습니다.`);
     if (await guard(saveAccounts(accounts().map(x => x.id === a.id ? { ...x, ph: hash(x.id, '1234'), must: true } : x)))) toast(`${a.id} 비밀번호를 초기화했습니다.`, 'ok');
   },
   async acctDel(t) {
     const a = accounts()[+t.dataset.i];
     if (!await ask(`${a.id} 계정을 삭제할까요?`, '삭제', true)) return;
+    if (sheetMode()) return acctOp({ action: 'del', id: a.id }, `${a.id} 계정을 삭제했습니다.`);
     if (await guard(saveAccounts(accounts().filter(x => x.id !== a.id)))) toast(`${a.id} 계정을 삭제했습니다.`, 'ok');
   },
 };
@@ -1660,8 +2057,8 @@ document.addEventListener('submit', async e => {
   if (e.target.method === 'dialog') return; // 대화상자 닫기는 브라우저 기본 동작에 맡김
   e.preventDefault();
   const id = e.target.id;
-  const notReady = S.dbMode === 'sheet' && !S.db.status.ready; // 시트를 다 불러오기 전에는 기본 계정·비밀번호로 열리지 않게 막음
-  if (notReady && (id === 'f-check' || id === 'f-login')) return note(id === 'f-check' ? '#chkMsg' : '#loginMsg', '데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.', 'err');
+  const notReady = S.dbMode === 'sheet' && !S.db.status.ready; // 시트를 다 불러오기 전에는 기본 계정·비밀번호로 열리거나 중복 메뉴가 생기지 않게 막음
+  if (notReady && (id === 'f-check' || id === 'f-login' || id === 'f-custom')) return note({ 'f-check': '#chkMsg', 'f-login': '#loginMsg', 'f-custom': '#cuMsg' }[id], '데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.', 'err');
   if (id === 'f-custom') {
     const name = $('#cuName').value.trim().replace(/\s+/g, ' '), temp = $('input[name="cuTemp"]:checked')?.value;
     const raw = $('#cuPrice').value.replace(/[^\d]/g, ''), price = raw ? Math.min(Number(raw), 1000000) : 0;
@@ -1685,21 +2082,58 @@ document.addEventListener('submit', async e => {
     return;
   }
   if (id === 'f-check') {
+    if (sheetMode()) { // 비밀번호는 서버만 알고 있음
+      note('#chkMsg', '확인하는 중입니다…');
+      try { await S.db.call({ op: 'checkpw', pw: $('#cpw').value }); S.checkOk = true; renderView(); }
+      catch (x) { note('#chkMsg', x.message === 'checkpw' ? '비밀번호가 맞지 않습니다.' : '확인하지 못했습니다: ' + sheetErrText(x), 'err'); $('#cpw').select(); }
+      return;
+    }
     if ($('#cpw').value === S.cfg.checkPw) { S.checkOk = true; renderView(); }
     else { note('#chkMsg', '비밀번호가 맞지 않습니다.', 'err'); $('#cpw').select(); }
   } else if (id === 'f-login') {
-    const lid = $('#lid').value.trim(), pw = $('#lpw').value, a = accounts().find(x => x.id === lid);
+    const lid = $('#lid').value.trim(), pw = $('#lpw').value;
+    if (sheetMode()) { // 서버가 비밀번호를 확인하고 세션을 내줌
+      if (S.db.status.old) return note('#loginMsg', 'Apps Script 코드가 이전 버전이라 로그인할 수 없습니다. 아래 안내대로 새 코드로 다시 배포해 주세요.', 'err');
+      note('#loginMsg', '확인하는 중입니다…');
+      try {
+        S.db.sid = null;
+        const r = await S.db.call({ op: 'login', id: lid, pw });
+        S.db.sid = r.sid; S.session = { id: r.me.id, info: r.me }; S.db.resync(); renderView();
+      } catch (x) {
+        note('#loginMsg', x.message === 'login' ? '아이디 또는 비밀번호가 맞지 않습니다.' : '로그인하지 못했습니다: ' + sheetErrText(x), 'err');
+        $('#lpw')?.select();
+      }
+      return;
+    }
+    const a = accounts().find(x => x.id === lid);
     if (a && a.ph === hash(a.id, pw)) { S.session = { id: a.id }; logEvent(a.id, 'login', true); renderView(); }
     else { logEvent(lid, 'login', false); note('#loginMsg', '아이디 또는 비밀번호가 맞지 않습니다.', 'err'); $('#lpw').select(); }
   } else if (id === 'f-must' || id === 'f-mypw') {
     const must = id === 'f-must', msg = must ? '#mustMsg' : '#mypwMsg';
     const p1 = $(must ? '#np1' : '#mp1').value, p2 = $(must ? '#np2' : '#mp2').value, a = me();
-    if (!must && a.ph !== hash(a.id, $('#mp0').value)) return note(msg, '현재 비밀번호가 맞지 않습니다.', 'err');
     if (p1.length < 4 || p1 === '1234') return note(msg, '4자 이상, 1234가 아닌 비밀번호를 입력해 주세요.', 'err');
-    if (hash(a.id, p1) === a.ph) return note(msg, '지금 비밀번호와 다른 비밀번호를 입력해 주세요.', 'err');
     if (p1 !== p2) return note(msg, '두 비밀번호가 같지 않습니다.', 'err');
+    if (sheetMode()) {
+      try { await S.db.call({ op: 'setpw', old: must ? '' : $('#mp0').value, pw: p1 }); }
+      catch (x) {
+        if (x.message === 'session') return S.db.onSession?.();
+        return note(msg, { oldpw: '현재 비밀번호가 맞지 않습니다.', weakpw: '4자 이상, 1234가 아닌 비밀번호를 입력해 주세요.', samepw: '지금 비밀번호와 다른 비밀번호를 입력해 주세요.' }[x.message] || '변경하지 못했습니다: ' + sheetErrText(x), 'err');
+      }
+      S.session.info = { ...S.session.info, must: false };
+      if (S.accounts) S.accounts = S.accounts.map(x => x.id === a.id ? { ...x, must: false } : x);
+      S.db.resync(); toast('비밀번호를 변경했습니다.', 'ok'); renderView();
+      return;
+    }
+    if (!must && a.ph !== hash(a.id, $('#mp0').value)) return note(msg, '현재 비밀번호가 맞지 않습니다.', 'err');
+    if (hash(a.id, p1) === a.ph) return note(msg, '지금 비밀번호와 다른 비밀번호를 입력해 주세요.', 'err');
     if (await guard(saveAccounts(accounts().map(x => x.id === a.id ? { ...x, ph: hash(x.id, p1), must: false } : x)))) {
       logEvent(a.id, 'pwchange', true); toast('비밀번호를 변경했습니다.', 'ok'); renderView();
+    }
+  } else if (id === 'f-rules') {
+    const dl = $('#ruDl').value.slice(0, 5);
+    if (dl && !/^\d{2}:\d{2}$/.test(dl)) return note('#rulesMsg', '마감 시각을 다시 확인해 주세요.', 'err');
+    if (await guard(saveCfg({ allowCancel: $('#ruCancel').checked, deadline: dl, lockOrder: $('#ruLockOrder').checked, lockCancel: $('#ruLockCancel').checked }))) {
+      note('#rulesMsg', '주문 설정을 저장했습니다. 주문 화면에 바로 반영됩니다.', 'ok');
     }
   } else if (id === 'f-checkpw') {
     const v = $('#ncp').value.trim();
@@ -1709,7 +2143,7 @@ document.addEventListener('submit', async e => {
     AI = { provider: $('#aiProv').value, key: $('#aiKey').value.trim(), model: $('#aiModel').value.trim() || aiDefaults($('#aiProv').value).model, endpoint: $('#aiEp').value.trim() };
     { const ok = lsSet('cafe-ai', AI); note('#aiMsg', ok ? 'AI 설정을 저장했습니다.' : '저장하지 못했습니다.', ok ? 'ok' : 'err'); }
   } else if (id === 'f-conn') {
-    const next = { type: $('#cnType').value, url: $('#cnUrl').value.trim(), token: $('#cnTok').value.trim() };
+    const next = { type: $('#cnType').value, url: $('#cnUrl').value.trim(), token: $('#cnTok').value.trim(), own: true };
     if (next.type === 'sheet') {
       if (!next.url || !next.token) return note('#cnMsg', '웹 앱 URL과 토큰을 입력해 주세요.', 'err');
       note('#cnMsg', '연결을 확인하는 중입니다…');
@@ -1726,6 +2160,10 @@ document.addEventListener('submit', async e => {
     if (!/^[A-Za-z0-9_가-힣]{2,20}$/.test(nid)) return note('#acctMsg', '아이디는 2~20자의 글자, 숫자, _ 만 쓸 수 있습니다.', 'err');
     if (accounts().some(x => x.id === nid)) return note('#acctMsg', '이미 있는 아이디입니다.', 'err');
     const perms = {}; $$('[data-newperm]').forEach(c => { perms[c.dataset.newperm] = c.checked; });
+    if (sheetMode()) {
+      if (await acctOp({ action: 'add', id: nid, pw: npw, perms }, `${nid} 계정을 추가했습니다.`, '#acctMsg')) { $('#nid').value = ''; $('#npw').value = ''; }
+      return;
+    }
     if (await guard(saveAccounts(accounts().concat([{ id: nid, ph: hash(nid, npw), role: 'user', must: true, perms }])))) {
       $('#nid').value = ''; $('#npw').value = ''; note('#acctMsg', `${nid} 계정을 추가했습니다.`, 'ok');
     }
@@ -1752,6 +2190,7 @@ document.title = '카페 주문 v' + VERSION;
 init();
 route();
 setInterval(rotateCheckPw, 60000); // 페이지를 켜 둔 채 자정을 넘겨도 바뀌도록
+setInterval(() => { paint('orderNotice'); paint('orderBar'); paint('mine'); paint('rulesState'); }, 30000); // 마감 시각이 지나면 안내와 버튼을 바꿈
 })();
 </script>
 </body>
