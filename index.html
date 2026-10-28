@@ -168,6 +168,9 @@ textarea.inp{min-height:130px;padding:10px 12px;line-height:1.6;resize:vertical}
 .side{position:sticky;top:84px;display:grid;gap:12px}
 .who{padding:12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
 .who b{display:block}
+.mypw{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);gap:10px}
+.mypw[hidden]{display:none}
+.mypw .inp{width:100%}
 .stabs{display:grid;gap:2px}
 .stab{display:flex;align-items:center;justify-content:space-between;gap:6px;border:0;background:none;text-align:left;padding:9px 12px;border-radius:10px;cursor:pointer;color:var(--muted);font-weight:600}
 .stab:hover{background:var(--surface-2)}
@@ -245,7 +248,7 @@ dialog.photo img{display:block;max-width:100%;max-height:80vh;border-radius:10px
 /* =====================================================================
    상수
    ===================================================================== */
-const VERSION = '3.2';
+const VERSION = '3.3';
 const LEGACY_KEY = 'cafeOrderApp_v10';           // v1.x · v2.0(단일 파일) 저장 데이터
 const LEGACY_BRAND_KEY = 'cafeOrderBrandMenus_v1';
 const TESSERACT_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
@@ -266,12 +269,16 @@ const TABS = [
   { k: 'data', label: '데이터 · DB', admin: true },
   { k: 'accounts', label: '계정 · 권한', admin: true },
   { k: 'logs', label: '로그인 기록', admin: true },
-  { k: 'mypw', label: '내 비밀번호' },
-  { k: 'release', label: '릴리즈 노트' },
+  { k: 'release', label: '릴리즈 노트', admin: true },
 ];
 const SORTS = [['new', '최신순'], ['old', '주문순'], ['name', '이름순'], ['menu', '메뉴순']];
 const TEMP_ORDER = { HOT: 0, ICE: 1, '-': 2 };
 const RELEASES = [
+  ['v3.3', '2026-10-28', [
+    '「내 비밀번호」 메뉴를 설정 왼쪽 계정 상자의 「비밀번호 변경」 버튼으로 이동',
+    '사용자 계정에서는 릴리즈 노트 탭을 숨김',
+    '확인창 버튼 결과가 늦게 전달되던 문제 수정',
+  ]],
   ['v3.2', '2026-10-28', [
     '구글 시트를 원격 DB로 연결(Apps Script 웹 앱): 여러 기기에서 메뉴·주문·계정·주문확인 비밀번호를 함께 사용',
     '설정 → 데이터 · DB에 시트 준비 안내, Apps Script 코드 복사, 연결 테스트, 연결 상태(마지막 동기화) 표시',
@@ -1129,7 +1136,13 @@ function settingsView() {
     <aside class="side">
       <div class="who"><b>${esc(S.session.id)}</b><span class="hint">${isAdmin() ? '관리자' : '사용자'} · ${{ local: '이 브라우저에 저장', fallback: '브라우저 저장(연결 정보 없음)', sheet: '구글 시트', remote: '원격 DB', custom: '외부 DB' }[S.dbMode]}</span>
         <div data-paint="sidePw"></div>
-        <div style="margin-top:8px"><button class="btn sm" data-act="logout">로그아웃</button></div></div>
+        <div class="row" style="margin-top:8px"><button class="btn sm" data-act="myPw" aria-expanded="false" aria-controls="f-mypw">비밀번호 변경</button><button class="btn sm" data-act="logout">로그아웃</button></div>
+        <form id="f-mypw" class="stack mypw" hidden>
+          <div><label class="lbl" for="mp0">현재 비밀번호</label><input id="mp0" class="inp" type="password" autocomplete="current-password"></div>
+          <div><label class="lbl" for="mp1">새 비밀번호 (4자 이상, 1234 제외)</label><input id="mp1" class="inp" type="password" autocomplete="new-password"></div>
+          <div><label class="lbl" for="mp2">새 비밀번호 확인</label><input id="mp2" class="inp" type="password" autocomplete="new-password"></div>
+          <div id="mypwMsg"></div>
+          <div class="row"><button class="btn sm" type="button" data-act="myPw">취소</button><button class="btn sm primary grow" type="submit">변경</button></div></form></div>
       <nav class="stabs" role="tablist" aria-label="설정 메뉴" data-paint="stabs"></nav>
     </aside>
     <section id="tabBody">${(TAB_HTML[S.tab] || (() => ''))()}</section>
@@ -1220,12 +1233,6 @@ const TAB_HTML = {
       <div id="acctMsg"></div><button class="btn primary" type="submit">계정 추가</button></form>
     <div class="card"><h3>계정 목록 · 권한</h3><p class="hint">관리자는 모든 메뉴를 봅니다. 사용자는 체크한 메뉴만 설정에서 볼 수 있습니다.</p><div data-paint="acctList"></div></div>`,
   logs: () => `<div class="card"><h3>로그인 기록</h3><p class="hint">최근 200건</p><div data-paint="logList"></div></div>`,
-  mypw: () => `
-    <form id="f-mypw" class="card stack narrow" style="margin:0;max-width:460px"><div><h3>내 비밀번호 변경</h3><p class="hint">${esc(S.session.id)} 계정</p></div>
-      <div><label class="lbl" for="mp0">현재 비밀번호</label><input id="mp0" class="inp" type="password" autocomplete="current-password"></div>
-      <div><label class="lbl" for="mp1">새 비밀번호 (4자 이상, 1234 제외)</label><input id="mp1" class="inp" type="password" autocomplete="new-password"></div>
-      <div><label class="lbl" for="mp2">새 비밀번호 확인</label><input id="mp2" class="inp" type="password" autocomplete="new-password"></div>
-      <div id="mypwMsg"></div><div><button class="btn primary" type="submit">변경</button></div></form>`,
   release: () => `<div class="card">${RELEASES.map(([v, d, items], i) => `<div class="release${i ? '' : ' cur'}"><b>${v}</b> <span class="hint">${d}${i ? '' : ' · 현재 버전'}</span><ul>${items.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div>`,
 };
 
@@ -1399,6 +1406,12 @@ const ACT = {
     const ta = $('#shareTxt');
     try { await navigator.clipboard.writeText(ta.value); note('#copyMsg', '복사했습니다. 메신저에 붙여넣으세요.', 'ok'); }
     catch (e) { ta.focus(); ta.select(); note('#copyMsg', '자동 복사가 막혀 있습니다. 선택된 글을 직접 복사해 주세요.', 'err'); }
+  },
+  myPw() { // 계정 상자 안의 비밀번호 변경 칸 열기/닫기
+    const f = $('#f-mypw'), open = f.hidden;
+    f.hidden = !open; f.reset(); note('#mypwMsg', '');
+    $$('[data-act="myPw"][aria-controls]').forEach(b => b.setAttribute('aria-expanded', open));
+    if (open) $('#mp0').focus();
   },
   async logout() {
     if (S.dirty && !await ask('메뉴표에 저장하지 않은 변경이 있습니다. 버리고 로그아웃할까요?', '버리고 로그아웃', true)) return;
