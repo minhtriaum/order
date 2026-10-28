@@ -944,7 +944,7 @@ function paintAll() { $$('[data-paint]').forEach(el => PAINT[el.dataset.paint]?.
 function paintBanner() {
   let t = '';
   const st = S.dbMode === 'sheet' ? S.db.status : null;
-  if (st && !st.ready) t = st.err ? `구글 시트에 연결하지 못했습니다: ${st.err}. 계속 다시 시도합니다. 설정 → 데이터 · DB에서 연결을 확인하세요.` : '구글 시트에서 데이터를 불러오는 중입니다…';
+  if (st && !st.ready) t = st.err ? `구글 시트에 연결하지 못했습니다: ${st.err}. 계속 다시 시도합니다. 설정 → 데이터 · DB에서 연결을 확인하세요.` : '데이터를 불러오는 중입니다…';
   else if (st && st.err) t = `구글 시트와 연결이 끊겼습니다: ${st.err}. 마지막 동기화 ${st.last ? hm(st.last) : '-'}. 다시 연결되면 자동으로 이어집니다.`;
   else if (S.dbErr) t = '저장 중 문제가 생겼습니다. 브라우저 저장 공간이 가득 찼거나 막혀 있을 수 있습니다. 설정 → 데이터 · DB에서 백업을 받아 두세요.';
   else if (S.view === 'settings' && S.dbMode === 'fallback') t = 'DB 연결 정보(또는 어댑터)가 없어 이 브라우저 저장소를 사용하고 있습니다.';
@@ -1661,7 +1661,7 @@ document.addEventListener('submit', async e => {
   e.preventDefault();
   const id = e.target.id;
   const notReady = S.dbMode === 'sheet' && !S.db.status.ready; // 시트를 다 불러오기 전에는 기본 계정·비밀번호로 열리지 않게 막음
-  if (notReady && (id === 'f-check' || id === 'f-login')) return note(id === 'f-check' ? '#chkMsg' : '#loginMsg', '구글 시트에서 데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.', 'err');
+  if (notReady && (id === 'f-check' || id === 'f-login')) return note(id === 'f-check' ? '#chkMsg' : '#loginMsg', '데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.', 'err');
   if (id === 'f-custom') {
     const name = $('#cuName').value.trim().replace(/\s+/g, ' '), temp = $('input[name="cuTemp"]:checked')?.value;
     const raw = $('#cuPrice').value.replace(/[^\d]/g, ''), price = raw ? Math.min(Number(raw), 1000000) : 0;
