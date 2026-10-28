@@ -1,0 +1,1651 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>카페 주문 v3.0</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+/* 디자인: 카페 카운터 느낌의 크림 배경 + 에스프레소 포인트. HOT은 주황, ICE는 파랑으로 일관되게 구분한다. */
+:root{
+  --bg:#F7F3EE; --surface:#FFFFFF; --surface-2:#FBF8F4; --ink:#2A211C; --muted:#7A6E66; --line:#E8DFD6;
+  --accent:#6B3E26; --accent-ink:#FFFFFF; --accent-soft:#F3E7DC;
+  --hot:#C2410C; --hot-bg:#FDEBDD; --ice:#1D6FB8; --ice-bg:#E3EFFA;
+  --good:#2F7D4F; --good-bg:#E3F2E8; --bad:#B42318; --bad-bg:#FDECEA; --warn:#8A5A00; --warn-bg:#FFF3D6;
+  --shadow:0 1px 2px rgba(42,33,28,.06),0 6px 20px rgba(42,33,28,.06);
+  --f:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#16120F; --surface:#1F1915; --surface-2:#251E19; --ink:#F1E9E2; --muted:#A89A8F; --line:#3A2F28;
+    --accent:#E0A47A; --accent-ink:#1A120D; --accent-soft:#3A2A20;
+    --hot:#FB9A62; --hot-bg:#3D2214; --ice:#7DB8F0; --ice-bg:#142838;
+    --good:#7BD39A; --good-bg:#17301F; --bad:#FF8F85; --bad-bg:#3A1715; --warn:#F2C56B; --warn-bg:#35290F;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25); color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16120F; --surface:#1F1915; --surface-2:#251E19; --ink:#F1E9E2; --muted:#A89A8F; --line:#3A2F28;
+  --accent:#E0A47A; --accent-ink:#1A120D; --accent-soft:#3A2A20;
+  --hot:#FB9A62; --hot-bg:#3D2214; --ice:#7DB8F0; --ice-bg:#142838;
+  --good:#7BD39A; --good-bg:#17301F; --bad:#FF8F85; --bad-bg:#3A1715; --warn:#F2C56B; --warn-bg:#35290F;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25); color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--f);letter-spacing:-.01em}
+button,input,select,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+h2{font-size:22px;font-weight:800;letter-spacing:-.02em}
+h3{font-size:16px;font-weight:700}
+code{font-size:13px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px;padding:0 4px}
+.app{max-width:1040px;margin:0 auto;padding:0 max(16px,env(safe-area-inset-left)) 120px}
+.hidden{display:none!important}
+.muted{color:var(--muted)}.hint{font-size:13px;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+
+/* ── 상단 바 ── */
+.top{position:sticky;top:0;z-index:30;margin:0 -16px 20px;padding:10px 16px;background:color-mix(in srgb,var(--bg) 86%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top-in{max-width:1040px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.logo{width:40px;height:40px;border-radius:12px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:20px;flex:none}
+.brand b{display:block;font-size:17px;font-weight:800;line-height:1.2}
+.brand small{display:block;color:var(--muted);font-size:12px}
+.ver{font-size:11px;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent);margin-left:6px;vertical-align:2px}
+.nav{display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:3px;gap:2px}
+.nav button{border:0;background:none;padding:8px 14px;border-radius:9px;cursor:pointer;font-weight:600;color:var(--muted);white-space:nowrap}
+.nav button[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.icon-btn{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:grid;place-items:center;font-size:17px}
+@media (max-width:600px){.nav{order:3;flex-basis:100%}.nav button{flex:1;padding:8px 6px}}
+
+/* ── 공통 요소 ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border:1px solid var(--line);background:var(--surface);border-radius:10px;cursor:pointer;font-weight:600;white-space:nowrap;text-decoration:none}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad)}
+.btn.danger:hover:not(:disabled){border-color:var(--bad)}
+.btn.sm{min-height:32px;padding:0 10px;font-size:13px;border-radius:8px}
+.btn.lg{min-height:52px;padding:0 24px;font-size:17px;border-radius:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.inp{width:100%;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.inp:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.inp.s{min-height:38px;padding:0 9px}
+select.inp{padding-right:4px}
+textarea.inp{min-height:130px;padding:10px 12px;line-height:1.6;resize:vertical}
+.lbl{display:block;margin-bottom:6px;font-size:13px;font-weight:600;color:var(--muted)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row.end{justify-content:flex-end}
+.grow{flex:1 1 auto}
+.stack{display:grid;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+.card+.card{margin-top:14px}
+.card>h3{margin-bottom:4px}
+.card>.hint{margin-bottom:12px}
+.chip{display:inline-flex;align-items:center;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:800;letter-spacing:.02em;line-height:1.7;vertical-align:1px}
+.chip.hot{background:var(--hot-bg);color:var(--hot)}
+.chip.ice{background:var(--ice-bg);color:var(--ice)}
+.badge{display:inline-flex;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.badge.good{background:var(--good-bg);color:var(--good);border-color:transparent}
+.badge.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.note{padding:10px 12px;border-radius:10px;font-size:14px;background:var(--surface-2);margin-top:10px}
+.note.ok{background:var(--good-bg);color:var(--good)}
+.note.err{background:var(--bad-bg);color:var(--bad)}
+.note.warn{background:var(--warn-bg);color:var(--warn)}
+.note:empty{display:none}
+.empty{padding:28px 16px;border:1.5px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{padding:8px;text-align:left;font-size:12px;font-weight:600;color:var(--muted);border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .r{text-align:right}
+.tbl .t{white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
+.tbl .p{white-space:nowrap;font-weight:700;font-variant-numeric:tabular-nums}
+.tbl tr.paid td.dim{color:var(--muted)}
+.tbl input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
+.tbl .who{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:none;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.kpi span{display:block;font-size:12px;font-weight:600;color:var(--muted)}
+.kpi strong{display:block;font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.kpi.main{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.kpi.main span{color:inherit;opacity:.8}
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.check{display:inline-flex;gap:8px;align-items:center;cursor:pointer;font-size:14px}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+
+/* ── 주문 화면 ── */
+.order{max-width:780px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.hero h2{font-size:26px}
+.hero p{color:var(--muted);margin-top:2px}
+.name-inp{min-height:54px;font-size:18px;font-weight:600}
+.name-inp.shake{animation:shake .35s;border-color:var(--bad)}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.mine{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:14px 16px}
+.mine-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+.mine-it{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.mine-it .t{color:var(--muted);font-variant-numeric:tabular-nums}
+.menu-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.menu-tools h2{margin-right:auto}
+.menu-tools .inp{width:auto;flex:0 1 220px;min-height:38px}
+/* 메뉴판 리스트: 한 줄에 메뉴 하나, 오른쪽 HOT / ICE 열에서 바로 고른다 */
+.mlist{background:var(--surface);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+.mhead,.mrow{display:grid;grid-template-columns:minmax(0,1fr) 112px 112px;gap:8px;align-items:center;padding:10px 14px}
+.mhead{background:var(--surface-2);border-bottom:1px solid var(--line);font-size:12px;font-weight:700;color:var(--muted)}
+.mhead .h{text-align:center;color:var(--hot)}.mhead .i{text-align:center;color:var(--ice)}
+.mrow+.mrow{border-top:1px solid var(--line)}
+.mrow.on{background:var(--accent-soft)}
+.mname{font-weight:700;font-size:16px;overflow-wrap:anywhere}
+.tbtn{min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;border:1.5px solid var(--line);border-radius:12px;background:var(--surface-2);cursor:pointer;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.25}
+.tbtn small{font-size:11px;font-weight:800;letter-spacing:.04em}
+.tbtn.hot small{color:var(--hot)}.tbtn.ice small{color:var(--ice)}.tbtn.none small{color:var(--muted)}
+.tbtn.hot:hover{border-color:var(--hot)}.tbtn.ice:hover{border-color:var(--ice)}.tbtn.none:hover{border-color:var(--accent)}
+.tbtn.hot[aria-pressed="true"]{border-color:var(--hot);background:var(--hot);color:#fff}
+.tbtn.ice[aria-pressed="true"]{border-color:var(--ice);background:var(--ice);color:#fff}
+.tbtn.none[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.tbtn[aria-pressed="true"] small{color:inherit}
+.tbtn.wide{grid-column:2 / 4}
+.tna{min-height:48px;display:grid;place-items:center;border:1.5px dashed var(--line);border-radius:12px;color:var(--muted);font-size:12px}
+@media (max-width:480px){.mhead,.mrow{grid-template-columns:minmax(0,1fr) 86px 86px;padding:10px}.mname{font-size:15px}}
+.pwbig{font-size:44px;font-weight:800;letter-spacing:.18em;color:var(--accent);margin:6px 0 8px}
+.sidepw{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-size:13px}
+.sidepw b{font-size:16px;letter-spacing:.08em;margin-left:4px}
+.obar{position:sticky;bottom:max(12px,env(safe-area-inset-bottom));z-index:20;display:flex;align-items:center;gap:12px;padding:12px 12px 12px 18px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 30px rgba(42,33,28,.16)}
+.obar .sel{flex:1;min-width:0}
+.obar .sel b{font-size:16px}
+.obar .sel small{display:block;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── 주문확인 / 설정 ── */
+.narrow{max-width:400px;margin:40px auto 0}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.settings{display:grid;grid-template-columns:210px minmax(0,1fr);gap:20px;align-items:start}
+.side{position:sticky;top:84px;display:grid;gap:12px}
+.who{padding:12px 14px;border-radius:14px;background:var(--surface);border:1px solid var(--line)}
+.who b{display:block}
+.stabs{display:grid;gap:2px}
+.stab{display:flex;align-items:center;justify-content:space-between;gap:6px;border:0;background:none;text-align:left;padding:9px 12px;border-radius:10px;cursor:pointer;color:var(--muted);font-weight:600}
+.stab:hover{background:var(--surface-2)}
+.stab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none}
+@media (max-width:760px){
+  .settings{grid-template-columns:1fr}
+  .side{position:static}
+  .stabs{display:flex;overflow-x:auto;gap:4px;padding-bottom:4px}
+  .stab{flex:none;white-space:nowrap;border:1px solid var(--line);background:var(--surface)}
+}
+.photo-row{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+.thumb{width:150px;height:150px;border-radius:12px;border:1px solid var(--line);object-fit:cover;background:var(--surface-2);cursor:zoom-in;flex:none}
+.thumb.empty{display:grid;place-items:center;color:var(--muted);font-size:13px;cursor:default}
+.erow{display:grid;grid-template-columns:minmax(0,1fr) 96px 96px repeat(3,34px);gap:6px;align-items:center;margin-bottom:6px}
+.erow.h{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+.erow .x{min-height:38px;border:1px solid var(--line);background:var(--surface);border-radius:8px;cursor:pointer;color:var(--muted);padding:0}
+.erow .x:disabled{opacity:.35;cursor:default}
+@media (max-width:520px){.erow{grid-template-columns:minmax(0,1fr) 80px 80px 34px}.erow .mv{display:none}}
+.perm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px 14px;margin:10px 0}
+.acct{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.release{border-left:3px solid var(--line);padding:2px 0 2px 14px;margin-bottom:16px}
+.release.cur{border-left-color:var(--accent)}
+.release ul{margin:6px 0 0;padding-left:18px}.release li{margin:3px 0;font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.mchip{border:1px solid var(--line);border-radius:12px;padding:8px 12px;background:var(--surface-2);font-size:14px}
+.mchip b{font-variant-numeric:tabular-nums}
+.banner{margin-bottom:14px}
+
+/* ── 토스트 / 대화상자 ── */
+.toasts{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);z-index:60;display:grid;gap:8px;width:min(92vw,420px);pointer-events:none}
+.toast{padding:12px 16px;border-radius:12px;background:var(--ink);color:var(--bg);font-weight:600;box-shadow:var(--shadow);text-align:center;animation:pop .2s ease-out}
+.toast.err{background:var(--bad);color:#fff}
+.toast.ok{background:var(--good);color:#fff}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+dialog{border:0;border-radius:18px;padding:0;background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.3);max-width:min(92vw,460px)}
+dialog::backdrop{background:rgba(20,14,10,.45)}
+.dlg{padding:20px;display:grid;gap:16px}
+.dlg p{white-space:pre-line}
+dialog.photo{max-width:min(96vw,900px)}
+dialog.photo img{display:block;max-width:100%;max-height:80vh;border-radius:10px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="top-in">
+      <button class="brand" data-go="order" aria-label="주문 화면으로">
+        <span class="logo" aria-hidden="true">☕</span>
+        <span><b>카페 주문<span class="ver" id="ver"></span></b><small id="today"></small></span>
+      </button>
+      <nav class="nav" aria-label="화면 이동">
+        <button data-go="order">주문하기</button>
+        <button data-go="check">주문확인</button>
+        <button data-go="settings">설정</button>
+      </nav>
+      <button class="icon-btn" data-act="theme" id="themeBtn" aria-label="화면 테마 바꾸기"></button>
+    </div>
+  </header>
+  <div id="banner" class="banner"></div>
+  <main id="main"></main>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<dialog id="askDlg"><form method="dialog" class="dlg"><p id="askMsg"></p><div class="row end"><button class="btn" value="cancel">취소</button><button class="btn primary" value="ok" id="askOk">확인</button></div></form></dialog>
+<dialog id="photoDlg" class="photo"><form method="dialog" class="dlg"><div class="row"><h3 class="grow">메뉴판 사진</h3><button class="btn sm" value="close">닫기</button></div><img id="photoImg" alt="메뉴판 사진"></form></dialog>
+<input id="menuPhoto" type="file" accept="image/*" hidden>
+<input id="menuCsv" type="file" accept=".csv,.txt,text/csv" hidden>
+<input id="dbImport" type="file" accept=".json,application/json" hidden>
+
+<script>
+(() => {
+'use strict';
+
+/* =====================================================================
+   상수
+   ===================================================================== */
+const VERSION = '3.2';
+const LEGACY_KEY = 'cafeOrderApp_v10';           // v1.x · v2.0(단일 파일) 저장 데이터
+const LEGACY_BRAND_KEY = 'cafeOrderBrandMenus_v1';
+const TESSERACT_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const BRANDS = ['스타벅스', '메가커피', '컴포즈커피', '빽다방', '이디야커피', '투썸플레이스', '사용자 지정'];
+const PERMS = [
+  ['menuAdmin', '메뉴 관리 (사진·CSV·메뉴표)'],
+  ['brandMenus', '브랜드별 메뉴판 저장/불러오기'],
+  ['orderPreview', '주문 현황 · 공유'],
+  ['checkPassword', '주문확인 비밀번호'],
+];
+const TABS = [
+  { k: 'menu', label: '메뉴 관리', perm: 'menuAdmin' },
+  { k: 'brand', label: '브랜드 메뉴판', perm: 'brandMenus' },
+  { k: 'orders', label: '주문 현황', perm: 'orderPreview' },
+  { k: 'share', label: '공유', perm: 'orderPreview' },
+  { k: 'checkpw', label: '주문확인 비밀번호', perm: 'checkPassword' },
+  { k: 'ai', label: 'AI 연결', admin: true },
+  { k: 'data', label: '데이터 · DB', admin: true },
+  { k: 'accounts', label: '계정 · 권한', admin: true },
+  { k: 'logs', label: '로그인 기록', admin: true },
+  { k: 'mypw', label: '내 비밀번호' },
+  { k: 'release', label: '릴리즈 노트' },
+];
+const SORTS = [['new', '최신순'], ['old', '주문순'], ['name', '이름순'], ['menu', '메뉴순']];
+const TEMP_ORDER = { HOT: 0, ICE: 1, '-': 2 };
+const RELEASES = [
+  ['v3.2', '2026-10-28', [
+    '구글 시트를 원격 DB로 연결(Apps Script 웹 앱): 여러 기기에서 메뉴·주문·계정·주문확인 비밀번호를 함께 사용',
+    '설정 → 데이터 · DB에 시트 준비 안내, Apps Script 코드 복사, 연결 테스트, 연결 상태(마지막 동기화) 표시',
+    '이 브라우저 데이터를 시트로 올리기, 시트 데이터도 백업 내보내기·가져오기 지원',
+    '메뉴판 사진처럼 큰 데이터는 시트 여러 칸으로 나눠 저장',
+  ]],
+  ['v3.1', '2026-10-28', [
+    '주문하기 메뉴를 메뉴판 리스트로 변경: 한 줄에 메뉴 하나, HOT / ICE 열에서 가격을 보고 바로 선택',
+    '없는 온도는 「HOT 없음 / ICE 없음」으로 표시, 온도가 없는 메뉴는 한 칸으로 선택',
+    '설정에 로그인한 상태에서는 주문확인을 비밀번호 없이 열기',
+    '주문확인 비밀번호를 매일 새 4자리 난수로 자동 변경, 설정에 오늘 비밀번호 표시·복사',
+    '주문확인 비밀번호 직접 변경은 유지(그날 하루 적용), 변경 후 바뀐 비밀번호 표시',
+    '메뉴판 사진 닫기와 확인창 버튼이 동작하지 않던 문제 수정',
+  ]],
+  ['v3.0', '2026-10-28', [
+    'v2.1(AI·DB 어댑터·CSV)과 v2.0(브랜드 메뉴판·권한·집계·이미지 공유·OCR) 기능을 하나로 통합',
+    '화면 전체를 새로 디자인: 메뉴 카드에서 HOT/ICE 가격 버튼을 한 번 눌러 바로 선택, 하단 고정 주문 바',
+    '메뉴가 많을 때 주문 화면에서 메뉴 검색',
+    '메뉴판 읽기: AI(API 키) 또는 기기 내 OCR(무료) 중 선택',
+    '설정을 왼쪽 메뉴 탭 구조로 재구성, 계정별 권한에 따라 탭 표시',
+    '주문확인: 메뉴별 수량·주문자 표시, 입금 현황, 텍스트·이미지 공유',
+    '이전 버전(v1.x/v2.0) 데이터 자동 가져오기, 라이트/다크 테마 전환',
+    '메뉴표 행 순서 바꾸기, 중복 메뉴 검사, 저장 안 된 변경 표시',
+    '내 비밀번호 변경 탭, 계정 생성 시 초기 비밀번호·권한 지정',
+  ]],
+  ['v2.1', '2026-10-28', ['AI로 메뉴판 사진 읽기(Claude/OpenAI 호환)', 'DB 어댑터 구조와 백업 내보내기/가져오기', 'CSV·한번에 붙여넣기로 메뉴 등록', '비밀번호 해시 저장, 이름별 내 주문 취소']],
+  ['v2.0', '2026-10-28', ['v1.10 기능 재구현, 계정 권한 실제 적용', 'HOT/ICE를 누르면 메뉴도 함께 선택']],
+  ['v1.10', '2026-10-26', ['계정별 설정 메뉴 권한 편집']],
+  ['v1.8', '2026-10-26', ['메뉴판 사진 보기·삭제, 브랜드별 메뉴판 저장']],
+  ['v1.7', '2026-10-26', ['메뉴별 수량 표와 주문자 현황']],
+  ['v1.4', '2026-10-26', ['라디오 방식 메뉴·온도 선택, 이름별 주문 조회']],
+  ['v1.2', '2026-10-26', ['메뉴판 사진에서 메뉴 테이블 생성(OCR)']],
+];
+
+/* =====================================================================
+   유틸
+   ===================================================================== */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const won = n => (Number(n) || 0).toLocaleString('ko-KR') + '원';
+const pad = n => String(n).padStart(2, '0');
+const hm = ts => { const d = new Date(ts); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const hms = ts => hm(ts) + ':' + pad(new Date(ts).getSeconds());
+const fullT = ts => { const d = new Date(ts); return `${d.getMonth() + 1}/${d.getDate()} ${hms(ts)}`; };
+const fileStamp = () => { const d = new Date(); return String(d.getFullYear()).slice(2) + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()); };
+const uid = () => Math.random().toString(36).slice(2, 9);
+const normName = s => String(s || '').trim().toLocaleLowerCase('ko');
+const sum = list => list.reduce((a, o) => a + (Number(o.price) || 0), 0);
+const label = o => o.menu + (o.temp === 'HOT' || o.temp === 'ICE' ? ` (${o.temp})` : '');
+const chip = t => t === 'HOT' ? '<span class="chip hot">HOT</span>' : t === 'ICE' ? '<span class="chip ice">ICE</span>' : '';
+const labelHtml = o => esc(o.menu) + (chip(o.temp) ? ' ' + chip(o.temp) : '');
+const note = (sel, text, kind) => { const el = $(sel); if (el) el.innerHTML = text ? `<div class="note ${kind || ''}" role="status">${esc(text)}</div>` : ''; };
+
+function hash(id, pw) { // v2.1과 같은 방식(호환). 브라우저 안 단순 해시라 진짜 보안 수단은 아님
+  const s = 'cafe|' + id + '|' + pw; let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) { const ch = s.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+const defAccounts = () => [
+  { id: 'admin', ph: hash('admin', '1234'), role: 'admin', must: true },
+  { id: 'order', ph: hash('order', '1234'), role: 'user', must: true },
+];
+const lsGet = (k, def) => { try { const v = localStorage.getItem(k); return v == null ? def : JSON.parse(v); } catch (e) { return def; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+
+/* =====================================================================
+   DB 어댑터 (v2.1과 같은 인터페이스)
+   앱은 db.doc(path) / db.collection(name) 의 get·set·update·delete·add·orderBy·limit·onSnapshot만 사용합니다.
+   원격 DB를 붙일 때는 같은 인터페이스를 구현해 window.CAFE_DB 또는 ADAPTERS.remote 에 넣으세요.
+   ===================================================================== */
+const LocalDB = (() => {
+  const KEY = 'cafe-order-data';
+  let mem = {}, subs = [];
+  const clone = x => x === undefined ? undefined : JSON.parse(JSON.stringify(x));
+  const load = () => { mem = lsGet(KEY, {}) || {}; };
+  const persist = () => localStorage.setItem(KEY, JSON.stringify(mem));
+  const coll = c => mem[c] || (mem[c] = {});
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const snapDoc = (c, id) => { const d = mem[c]?.[id]; return { id, exists: !!d, data: () => clone(d) }; };
+  const snapQ = (c, o, lim) => {
+    let a = Object.keys(mem[c] || {}).map(id => snapDoc(c, id));
+    if (o) a.sort((p, q) => { const x = p.data()[o.f], y = q.data()[o.f], r = x < y ? -1 : x > y ? 1 : 0; return o.d === 'desc' ? -r : r; });
+    if (lim) a = a.slice(0, lim);
+    return { docs: a, size: a.length };
+  };
+  const sub = (c, fire) => { const h = { c, fire }; subs.push(h); setTimeout(fire, 0); return () => { subs = subs.filter(x => x !== h); }; };
+  const notify = c => subs.slice().forEach(h => { if (c === '*' || h.c === c) h.fire(); });
+  const write = (c, fn) => new Promise((res, rej) => {
+    const before = JSON.stringify(mem);
+    try { fn(); persist(); } catch (e) { mem = JSON.parse(before); return rej(e); }
+    res(); setTimeout(() => notify(c), 0);
+  });
+  const docRef = (c, id) => ({
+    id,
+    get: () => Promise.resolve(snapDoc(c, id)),
+    set: d => write(c, () => { coll(c)[id] = clone(d); }),
+    update: d => write(c, () => { const cur = coll(c)[id]; if (!cur) throw new Error('not-found'); Object.assign(cur, clone(d)); }),
+    delete: () => write(c, () => { delete coll(c)[id]; }),
+    onSnapshot: cb => sub(c, () => cb(snapDoc(c, id))),
+  });
+  const query = (c, o, lim) => ({
+    orderBy: (f, d) => query(c, { f, d: d || 'asc' }, lim),
+    limit: n => query(c, o, n),
+    get: () => Promise.resolve(snapQ(c, o, lim)),
+    onSnapshot: cb => sub(c, () => cb(snapQ(c, o, lim))),
+  });
+  load();
+  window.addEventListener('storage', e => { if (e.key === KEY) { load(); notify('*'); } });
+  return {
+    kind: 'local',
+    doc: p => { const i = p.indexOf('/'); return docRef(p.slice(0, i), p.slice(i + 1)); },
+    collection: c => Object.assign(query(c, null, 0), {
+      doc: id => docRef(c, id || newId()),
+      add: d => { const r = docRef(c, newId()); return r.set(d).then(() => r); },
+    }),
+    dump: () => clone(mem),
+    isEmpty: () => !Object.keys(mem).some(c => Object.keys(mem[c] || {}).length),
+    restore: (obj, mode) => write('*', () => {
+      if (mode === 'replace') mem = {};
+      Object.keys(obj).forEach(c => {
+        if (!obj[c] || typeof obj[c] !== 'object') return;
+        if (!mem[c]) mem[c] = {};
+        Object.keys(obj[c]).forEach(id => { mem[c][id] = clone(obj[c][id]); });
+      });
+    }),
+  };
+})();
+/* ---------------------------------------------------------------------
+   구글 시트 어댑터
+   Apps Script 웹앱을 거쳐 시트 'docs' 탭에 문서 하나를 한 줄(path · json · ts)로 저장합니다.
+   읽기: POLL_MS마다 바뀐 줄만 받아 옴(since). 쓰기: 화면에 먼저 반영하고 서버 응답을 기다림.
+   한 칸(최대 5만 자)을 넘는 문서(메뉴판 사진 등)는 path#0, path#1 … 조각으로 나눠 저장합니다.
+   요청은 text/plain POST로 보내 브라우저의 CORS 사전 요청을 피합니다.
+   --------------------------------------------------------------------- */
+const SHEET_POLL_MS = 5000, SHEET_POLL_HIDDEN_MS = 30000;
+async function sheetCall(conn, body) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 30000);
+  try {
+    const res = await fetch(conn.url, { method: 'POST', body: JSON.stringify({ ...body, token: conn.token }), signal: ctl.signal });
+    const j = await res.json().catch(() => null);
+    if (!res.ok || !j) throw new Error('http');
+    if (!j.ok) throw new Error(j.error || 'fail');
+    return j;
+  } finally { clearTimeout(timer); }
+}
+function sheetErrText(e) {
+  const m = e?.message || '';
+  if (e?.name === 'AbortError') return '응답이 너무 늦습니다';
+  if (m === 'token') return '토큰이 Apps Script의 TOKEN과 다릅니다';
+  if (m === 'token-not-set') return 'Apps Script 코드의 TOKEN을 아직 바꾸지 않았습니다';
+  if (m === 'http') return '웹 앱 응답이 올바르지 않습니다(주소가 /exec로 끝나는지 확인)';
+  if (e instanceof TypeError) return '웹 앱 주소에 연결할 수 없습니다(인터넷, 주소, 배포 액세스 권한 「모든 사용자」 확인)';
+  return m || '알 수 없는 오류';
+}
+function SheetDB(conn) {
+  const CELL = 45000, PART = 20000;
+  const base = new Map(), baseTs = new Map(); // 서버에서 받은 줄과 그 시각
+  const over = new Map();                     // 서버 응답을 기다리는 내 쓰기 { json, n }
+  let subs = [], since = 0, polling = false, timer = 0, seq = 0, chain = Promise.resolve();
+  const st = { ready: false, err: '', last: 0 };
+  const collOf = p => p.split('/')[0];
+  const raw = p => over.has(p) ? over.get(p).json : (base.get(p) || '');
+  function read(p) {
+    const r = raw(p); if (!r) return undefined;
+    try {
+      const v = JSON.parse(r);
+      if (!v || !v.__chunks) return v;
+      let s = ''; for (let k = 0; k < v.__chunks; k++) s += JSON.parse(raw(p + '#' + k) || '""');
+      return JSON.parse(s);
+    } catch (e) { return undefined; }
+  }
+  const chunkCount = p => { try { return JSON.parse(raw(p) || '{}').__chunks || 0; } catch (e) { return 0; } };
+  const ids = c => {
+    const pre = c + '/', out = new Set();
+    for (const m of [base, over]) for (const p of m.keys()) if (p.startsWith(pre) && !p.includes('#') && raw(p)) out.add(p.slice(pre.length));
+    return [...out];
+  };
+  const snapDoc = (c, id) => { const v = read(c + '/' + id); return { id, exists: v !== undefined, data: () => v }; };
+  const snapQ = (c, o, lim) => {
+    let a = ids(c).map(id => snapDoc(c, id)).filter(s => s.exists);
+    if (o) a.sort((p, q) => { const x = p.data()[o.f], y = q.data()[o.f], r = x < y ? -1 : x > y ? 1 : 0; return o.d === 'desc' ? -r : r; });
+    if (lim) a = a.slice(0, lim);
+    return { docs: a, size: a.length };
+  };
+  const sub = (c, fire) => { const h = { c, fire }; subs.push(h); if (st.ready) setTimeout(fire, 0); return () => { subs = subs.filter(x => x !== h); }; };
+  const notify = c => subs.slice().forEach(h => { if (c === '*' || h.c === c) h.fire(); });
+  const status = () => { try { api.onStatus?.(st); } catch (e) {} };
+  // 문서 하나 → 시트 줄 쓰기 목록. 조각을 먼저 쓰고 본문 줄을 마지막에 써서, 본문이 보이면 조각이 다 있게 함
+  function encode(p, v) {
+    const ops = [], prev = chunkCount(p);
+    let n = 0;
+    if (v === undefined) ops.push([p, '']);
+    else {
+      const s = JSON.stringify(v);
+      if (s.length <= CELL) ops.push([p, s]);
+      else {
+        n = Math.ceil(s.length / PART);
+        for (let k = 0; k < n; k++) ops.push([p + '#' + k, JSON.stringify(s.slice(k * PART, (k + 1) * PART))]);
+        ops.push([p, JSON.stringify({ __chunks: n, v: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) })]);
+      }
+    }
+    for (let k = n; k < prev; k++) ops.unshift([p + '#' + k, '']);
+    return ops;
+  }
+  function write(list) { // list: [[path, value | undefined(삭제)]]
+    const ops = []; list.forEach(([p, v]) => ops.push(...encode(p, v)));
+    const n = ++seq, touched = new Set(ops.map(([p]) => collOf(p)));
+    ops.forEach(([p, json]) => over.set(p, { json, n }));
+    setTimeout(() => touched.forEach(notify), 0);
+    const job = chain.then(() => sheetCall(conn, { op: 'write', ops: ops.map(([path, json]) => ({ path, json })) }));
+    chain = job.catch(() => {});
+    return job.then(r => {
+      ops.forEach(([p, json]) => { base.set(p, json); baseTs.set(p, r.now); if (over.get(p)?.n === n) over.delete(p); });
+      st.err = ''; st.last = Date.now(); status();
+    }, e => {
+      ops.forEach(([p]) => { if (over.get(p)?.n === n) over.delete(p); });
+      touched.forEach(notify); st.err = sheetErrText(e); status();
+      throw e;
+    });
+  }
+  async function poll() {
+    if (polling) return;
+    polling = true; clearTimeout(timer);
+    try {
+      const r = await sheetCall(conn, { op: 'read', since: since ? since - 5000 : 0 }); // 5초 겹쳐 읽어 쓰기 직후 줄을 놓치지 않음
+      const changed = new Set();
+      (r.rows || []).forEach(([p, json, ts]) => {
+        if ((baseTs.get(p) || 0) > ts || base.get(p) === json) return;
+        base.set(p, json); baseTs.set(p, ts);
+        if (!over.has(p)) changed.add(collOf(p));
+      });
+      since = r.now; st.err = ''; st.last = Date.now();
+      if (!st.ready) { st.ready = true; notify('*'); } else changed.forEach(notify);
+    } catch (e) { st.err = sheetErrText(e); }
+    finally {
+      polling = false; status();
+      timer = setTimeout(poll, document.hidden ? SHEET_POLL_HIDDEN_MS : SHEET_POLL_MS);
+    }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  const docRef = (c, id) => {
+    const p = c + '/' + id;
+    return {
+      id,
+      get: () => Promise.resolve(snapDoc(c, id)),
+      set: d => write([[p, JSON.parse(JSON.stringify(d))]]),
+      update: d => { const cur = read(p); return cur === undefined ? Promise.reject(new Error('not-found')) : write([[p, { ...cur, ...JSON.parse(JSON.stringify(d)) }]]); },
+      delete: () => write([[p, undefined]]),
+      onSnapshot: cb => sub(c, () => cb(snapDoc(c, id))),
+    };
+  };
+  const query = (c, o, lim) => ({
+    orderBy: (f, d) => query(c, { f, d: d || 'asc' }, lim),
+    limit: n => query(c, o, n),
+    get: () => Promise.resolve(snapQ(c, o, lim)),
+    onSnapshot: cb => sub(c, () => cb(snapQ(c, o, lim))),
+  });
+  const colls = () => { const s = new Set(); for (const m of [base, over]) for (const p of m.keys()) s.add(collOf(p)); return [...s]; };
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const api = {
+    kind: 'sheet', status: st, onStatus: null,
+    doc: p => { const i = p.indexOf('/'); return docRef(p.slice(0, i), p.slice(i + 1)); },
+    collection: c => Object.assign(query(c, null, 0), {
+      doc: id => docRef(c, id || newId()),
+      add: d => { const r = docRef(c, newId()); return r.set(d).then(() => r); },
+    }),
+    dump: () => { const out = {}; colls().forEach(c => { ids(c).forEach(id => { const v = read(c + '/' + id); if (v !== undefined) (out[c] || (out[c] = {}))[id] = v; }); }); return out; },
+    isEmpty: () => !colls().some(c => ids(c).length),
+    restore: (obj, mode) => {
+      const list = [], keep = new Set();
+      Object.keys(obj).forEach(c => {
+        if (!obj[c] || typeof obj[c] !== 'object') return;
+        Object.keys(obj[c]).forEach(id => { list.push([c + '/' + id, obj[c][id]]); keep.add(c + '/' + id); });
+      });
+      if (mode === 'replace') colls().forEach(c => ids(c).forEach(id => { if (!keep.has(c + '/' + id)) list.push([c + '/' + id, undefined]); }));
+      return write(list);
+    },
+    poll,
+  };
+  poll();
+  return api;
+}
+
+/* 구글 시트에 붙여넣을 Apps Script 코드(설정 → 데이터 · DB에서 복사) */
+const SHEET_SCRIPT = [
+  '// 카페 주문 - 구글 시트 DB (Apps Script)',
+  '// 1) TOKEN을 길고 임의의 문자열로 바꾸기  2) 배포 → 새 배포 → 웹 앱, 실행: 나, 액세스: 모든 사용자',
+  "var TOKEN = '여기에-길고-임의의-문자열';",
+  "var SHEET = 'docs';",
+  '',
+  'function sheet_() {',
+  '  var ss = SpreadsheetApp.getActiveSpreadsheet();',
+  '  var s = ss.getSheetByName(SHEET);',
+  "  if (!s) { s = ss.insertSheet(SHEET); s.appendRow(['path', 'json', 'ts']); s.setFrozenRows(1); }",
+  '  return s;',
+  '}',
+  'function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }',
+  '',
+  "function doGet() { return out_({ ok: true, app: 'cafe-order-sheet' }); }",
+  '',
+  'function doPost(e) {',
+  '  var req;',
+  "  try { req = JSON.parse(e.postData.contents); } catch (x) { return out_({ ok: false, error: 'bad-request' }); }",
+  "  if (TOKEN.indexOf('여기에') === 0) return out_({ ok: false, error: 'token-not-set' });",
+  "  if (req.token !== TOKEN) return out_({ ok: false, error: 'token' });",
+  '  var lock = LockService.getScriptLock(); lock.waitLock(20000);',
+  '  try {',
+  '    var s = sheet_(), now = Date.now(), last = s.getLastRow();',
+  "    if (req.op === 'read') {",
+  '      var since = Number(req.since) || 0, rows = [];',
+  '      var vals = last > 1 ? s.getRange(2, 1, last - 1, 3).getValues() : [];',
+  '      for (var i = 0; i < vals.length; i++) if (Number(vals[i][2]) > since) rows.push([String(vals[i][0]), String(vals[i][1]), Number(vals[i][2])]);',
+  '      return out_({ ok: true, now: now, rows: rows });',
+  '    }',
+  "    if (req.op === 'write') {",
+  '      var paths = last > 1 ? s.getRange(2, 1, last - 1, 1).getValues() : [], index = {}, add = [], addAt = {};',
+  '      for (var j = 0; j < paths.length; j++) index[String(paths[j][0])] = j + 2;',
+  '      (req.ops || []).forEach(function (op) {',
+  "        var p = String(op.path), row = [p, String(op.json || ''), now];",
+  '        if (index[p]) s.getRange(index[p], 1, 1, 3).setValues([row]);',
+  '        else if (addAt[p] !== undefined) add[addAt[p]] = row;',
+  '        else { addAt[p] = add.length; add.push(row); }',
+  '      });',
+  '      if (add.length) s.getRange(s.getLastRow() + 1, 1, add.length, 3).setValues(add);',
+  '      return out_({ ok: true, now: now });',
+  '    }',
+  '    return out_({ ok: true, now: now, rows: Math.max(0, last - 1) });',
+  '  } finally { lock.releaseLock(); }',
+  '}',
+].join('\n');
+
+const ADAPTERS = { local: LocalDB, sheet: SheetDB, remote: null }; // remote: 직접 만든 DB 어댑터
+let CONN = Object.assign({ type: 'local', url: '', token: '' }, lsGet('cafe-conn', null) || {});
+function pickDB() {
+  if (window.CAFE_DB) return { db: window.CAFE_DB, mode: 'custom' };
+  if (CONN.type === 'sheet' && CONN.url && CONN.token) return { db: SheetDB(CONN), mode: 'sheet' };
+  if (CONN.type === 'remote' && ADAPTERS.remote) return { db: ADAPTERS.remote, mode: 'remote' };
+  return { db: LocalDB, mode: CONN.type === 'local' ? 'local' : 'fallback' };
+}
+
+/* =====================================================================
+   AI 연결
+   ===================================================================== */
+let AI = Object.assign({ provider: 'anthropic', key: '', model: 'claude-sonnet-5-5', endpoint: '' }, lsGet('cafe-ai', null) || {});
+const aiReady = () => !!(AI.key && AI.model);
+const aiDefaults = p => p === 'openai'
+  ? { model: 'gpt-4o', endpoint: 'https://api.openai.com/v1/chat/completions' }
+  : { model: 'claude-sonnet-5-5', endpoint: 'https://api.anthropic.com/v1/messages' };
+async function aiCall(cfg, prompt, dataUrl) {
+  const ep = cfg.endpoint || aiDefaults(cfg.provider).endpoint;
+  const mime = dataUrl ? ((dataUrl.match(/^data:(.*?);/) || [])[1] || 'image/jpeg') : null;
+  let res, body;
+  if (cfg.provider === 'openai') {
+    const content = [{ type: 'text', text: prompt }];
+    if (dataUrl) content.push({ type: 'image_url', image_url: { url: dataUrl } });
+    res = await fetch(ep, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + cfg.key }, body: JSON.stringify({ model: cfg.model, max_tokens: 4096, messages: [{ role: 'user', content }] }) });
+    body = await res.json().catch(() => null);
+    if (!res.ok) throw { code: 'http_' + res.status, msg: body?.error?.message };
+    return body?.choices?.[0]?.message?.content || '';
+  }
+  const parts = [];
+  if (dataUrl) parts.push({ type: 'image', source: { type: 'base64', media_type: mime, data: dataUrl.split(',')[1] } });
+  parts.push({ type: 'text', text: prompt });
+  res = await fetch(ep, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body: JSON.stringify({ model: cfg.model, max_tokens: 4096, messages: [{ role: 'user', content: parts }] }) });
+  body = await res.json().catch(() => null);
+  if (!res.ok) throw { code: 'http_' + res.status, msg: body?.error?.message };
+  return (body?.content || []).map(c => c.text || '').join('');
+}
+const READ_PROMPT = '첨부한 이미지는 카페 메뉴판입니다. 판매하는 모든 메뉴를 읽어 JSON 배열로만 답하세요.\n' +
+  '각 항목 형식: {"name":"메뉴 이름","temp":"HOT" 또는 "ICE" 또는 "-","price":숫자(원)}\n' +
+  '규칙: 핫과 아이스 가격이 따로 적혀 있으면 각각 한 행으로 만듭니다. 핫·아이스 모두 가능하고 가격이 하나만 적혀 있으면 같은 가격으로 두 행을 만듭니다. 한 가지 온도만 있는 메뉴는 그 온도만 넣습니다. 디저트처럼 온도가 없는 메뉴는 temp를 "-"로 합니다. 가격이 4.5처럼 천 원 단위로 적혀 있으면 4500으로 바꿉니다. 읽을 수 없는 항목은 넣지 않습니다.\n' +
+  '예: [{"name":"아메리카노","temp":"HOT","price":3000},{"name":"아메리카노","temp":"ICE","price":3500},{"name":"치즈케이크","temp":"-","price":6000}]';
+function aiErrorText(e) {
+  const c = e?.code;
+  if (c === 'http_401' || c === 'http_403') return 'API 키가 올바르지 않거나 권한이 없습니다. AI 연결 설정을 확인해 주세요.';
+  if (c === 'http_429') return '요청이 많아 잠시 쉬어야 합니다. 조금 뒤에 다시 눌러 주세요.';
+  if (c === 'http_400' || c === 'http_404') return 'AI 요청이 거절되었습니다. 모델 이름과 주소를 확인해 주세요.' + (e.msg ? ` (${e.msg})` : '');
+  if (c === 'invalid_json') return '메뉴판을 읽었지만 메뉴 형식으로 정리하지 못했습니다. 사진이 선명한지 확인하고 다시 시도해 주세요.';
+  if (e instanceof TypeError) return 'AI 서버에 연결하지 못했습니다. 인터넷 연결과 주소를 확인해 주세요.';
+  return c ? `요청이 실패했습니다 (${c})` : '메뉴판을 읽지 못했습니다. 다시 시도해 주세요.';
+}
+
+/* =====================================================================
+   CSV / 텍스트 → 메뉴
+   메뉴 한 행 = {id, name, temp:'HOT'|'ICE'|'-', price}. 핫/아이스 모두 되는 메뉴는 두 행.
+   ===================================================================== */
+function parseCSV(text) {
+  text = String(text).replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/)[0] || '';
+  const delim = [',', '\t', ';'].map(d => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === delim) { row.push(cur); cur = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cur); cur = ''; rows.push(row); row = []; }
+    else cur += c;
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(r => r.some(x => String(x).trim() !== ''));
+}
+function tempsOf(raw) {
+  const t = String(raw || '').trim().toLowerCase();
+  if (/(핫.*[\/,&·+].*아이스|아이스.*[\/,&·+].*핫|hot.*[\/,&+].*ice|ice.*[\/,&+].*hot|둘다|both|h\/i)/.test(t)) return ['HOT', 'ICE'];
+  if (/^(핫|hot|h$|뜨거운|따뜻)/.test(t)) return ['HOT'];
+  if (/^(아이스|ice|i$|차가운|냉)/.test(t)) return ['ICE'];
+  return ['-'];
+}
+function csvToMenu(text) {
+  const rows = parseCSV(text), out = []; let skipped = 0;
+  if (!rows.length) return { menu: [], skipped: 0 };
+  const isNum = x => /^[\d,.\s]*\d[\d,.\s]*(원)?$/.test(String(x).trim());
+  const h = rows[0].map(x => String(x).trim());
+  const fi = re => h.findIndex(x => re.test(x));
+  let iN = 0, iT = 1, iP = 2, hasHeader = false;
+  if (h.some(x => /메뉴|이름|name|menu|가격|price/i.test(x)) && !rows[0].some(isNum)) {
+    hasHeader = true;
+    const a = fi(/메뉴|이름|name|menu/i), b = fi(/구분|온도|옵션|핫|temp/i), c = fi(/가격|금액|price/i);
+    if (a >= 0) iN = a; iT = b; if (c >= 0) iP = c;
+    if (b < 0 && c < 0) { iT = -1; iP = 1; }
+  } else if (rows[0].length === 2) { iT = -1; iP = 1; }
+  rows.slice(hasHeader ? 1 : 0).forEach(r => {
+    const name = String(r[iN] || '').trim();
+    const ps = String(r[iP] ?? '').replace(/[,\s원]/g, '');
+    let price = Number(ps); if (price > 0 && price < 100) price *= 1000; price = Math.round(price);
+    if (!name || !isFinite(price) || ps === '') { skipped++; return; }
+    tempsOf(iT >= 0 ? r[iT] : '').forEach(t => out.push({ id: 'm' + uid(), name: name.slice(0, 40), temp: t, price: Math.max(0, price) }));
+  });
+  return { menu: out, skipped };
+}
+function textToCSV(text) { // 자유 형식 텍스트(한 줄에 메뉴 하나)를 CSV로 바꾼다
+  const lines = String(text).replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
+  if (lines.some(l => /[,\t;]/.test(l.replace(/\d,(?=\d{3})/g, '')))) return lines.join('\n');
+  const out = ['메뉴,구분,가격'];
+  lines.forEach(l => {
+    const m = l.trim().match(/^(.*?)[\s:\-–]*([\d][\d,.]*)\s*원?\s*$/);
+    if (!m) { out.push('"' + l.trim().replace(/"/g, '""') + '",,'); return; }
+    let name = m[1], t = '';
+    const tm = name.match(/(핫\s*\/\s*아이스|아이스\s*\/\s*핫|핫|아이스|hot\s*\/\s*ice|hot|ice)/i);
+    if (tm) { t = tm[1].replace(/\s/g, ''); name = name.replace(tm[0], ''); }
+    name = name.replace(/[()\[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+    out.push('"' + name.replace(/"/g, '""') + '",' + t + ',' + m[2].replace(/,/g, ''));
+  });
+  return out.join('\n');
+}
+function ocrToMenu(text) { // OCR 결과 텍스트에서 "메뉴명 … 가격" 줄을 찾는다
+  const out = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const line = raw.replace(/\s+/g, ' ').trim(); if (!line) continue;
+    const prices = [...line.matchAll(/(?:₩|￦)?\s*(\d{1,3}(?:[,.]\d{3})+|\d{1,2}\.\d|\d{3,6})\s*(?:원)?/g)];
+    if (!prices.length) continue;
+    const p = prices[prices.length - 1];
+    let price = Number(p[1].replace(/,/g, '')); if (price > 0 && price < 100) price = Math.round(price * 1000);
+    if (!isFinite(price) || price < 100) continue;
+    let name = (line.slice(0, p.index) + ' ' + line.slice(p.index + p[0].length));
+    const temps = tempsOf((name.match(/핫\s*\/\s*아이스|hot\s*\/\s*ice|아이스|핫|\bice\b|\bhot\b/i) || [''])[0]);
+    name = name.replace(/[₩￦|:：\-–—·•.]+/g, ' ').replace(/\b(HOT|ICE)\b|아이스|핫|\//gi, ' ').replace(/^\s*\d+[).]?\s+/, '').replace(/\s+/g, ' ').trim();
+    if (name.length < 2 || /^(메뉴|가격|금액|합계|total|price)$/i.test(name)) continue;
+    temps.forEach(t => { if (!out.some(x => x.name === name && x.temp === t)) out.push({ id: 'm' + uid(), name: name.slice(0, 40), temp: t, price }); });
+  }
+  return out;
+}
+function decodeText(buf) {
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf); }
+  catch (e) { try { return new TextDecoder('euc-kr').decode(buf); } catch (x) { return new TextDecoder().decode(buf); } }
+}
+const csvCell = x => { x = String(x ?? ''); return /[",\r\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; };
+const toCSV = rows => '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+const TEMP_KO = { HOT: '핫', ICE: '아이스', '-': '' };
+const menuToCSV = menu => toCSV([['메뉴', '구분', '가격'], ...menu.map(m => [m.name, TEMP_KO[m.temp] || '', m.price])]);
+function download(name, data, type) {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: type || 'text/plain' });
+  const u = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = u; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(u); a.remove(); }, 800);
+}
+function loadScript(src) {
+  return new Promise((ok, fail) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = fail; document.head.appendChild(s); });
+}
+function shrinkImage(file) { // 저장 공간을 아끼려고 JPEG 230KB 이하로 줄인다
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let max = 1400, q = 0.8, out = '';
+      for (let n = 0; n < 8; n++) {
+        const sc = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        out = c.toDataURL('image/jpeg', q);
+        if (out.length < 230000) return res(out);
+        if (q > 0.5) q -= 0.1; else max = Math.round(max * 0.8);
+      }
+      rej(new Error('too large'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('decode')); };
+    img.src = url;
+  });
+}
+
+/* =====================================================================
+   상태
+   ===================================================================== */
+const S = {
+  db: null, dbMode: 'local', dbErr: false,
+  cfg: { menu: [], checkPw: '1234' }, img: null, accounts: null, brands: {}, orders: [], logs: [],
+  loaded: { cfg: false, orders: false },
+  view: 'order', tab: 'menu', session: null, checkOk: false,
+  sort: 'new', showNames: false, pick: null, q: '', busy: false, cooling: false,
+  name: lsGet('cafe-name', '') || '',
+  draft: [], dirty: false, reading: false,
+};
+const accounts = () => S.accounts || defAccounts();
+const me = () => S.session && accounts().find(a => a.id === S.session.id);
+const isAdmin = () => me()?.role === 'admin';
+const can = perm => { const a = me(); return !!a && (a.role === 'admin' || a.perms?.[perm] !== false); };
+const visibleTabs = () => TABS.filter(t => t.admin ? isAdmin() : !t.perm || can(t.perm));
+
+/* =====================================================================
+   토스트 / 확인 대화상자
+   ===================================================================== */
+function toast(msg, kind, ms) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind || ''); el.textContent = msg; el.setAttribute('role', 'status');
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), ms || (kind === 'err' ? 4500 : 2800));
+}
+function ask(msg, okLabel, danger) {
+  const d = $('#askDlg');
+  if (!d.showModal) return Promise.resolve(confirm(msg));
+  $('#askMsg').textContent = msg;
+  const ok = $('#askOk'); ok.textContent = okLabel || '확인';
+  ok.style.background = danger ? 'var(--bad)' : ''; ok.style.borderColor = danger ? 'var(--bad)' : '';
+  d.returnValue = ''; d.showModal();
+  // 닫힘(close) 이벤트가 늦거나 빠지는 브라우저가 있어, 버튼 제출(submit) 시점에 바로 결과를 정한다
+  return new Promise(r => {
+    const f = d.querySelector('form');
+    const done = v => { f.removeEventListener('submit', onSub); d.removeEventListener('close', onClose); r(v); };
+    const onSub = e => done(e.submitter?.value === 'ok');
+    const onClose = () => done(d.returnValue === 'ok');
+    f.addEventListener('submit', onSub); d.addEventListener('close', onClose);
+  });
+}
+
+/* =====================================================================
+   데이터 구독
+   ===================================================================== */
+const dbErr = () => { if (S.dbMode !== 'sheet') S.dbErr = true; paintBanner(); }; // 시트 연결 문제는 S.db.status로 따로 표시
+async function guard(p, failMsg) {
+  try { await p; return true; } catch (e) {
+    dbErr();
+    toast(failMsg || (S.dbMode === 'sheet' ? '구글 시트에 저장하지 못했습니다: ' + sheetErrText(e) : '저장하지 못했습니다. 저장 공간을 확인해 주세요.'), 'err');
+    return false;
+  }
+}
+const saveCfg = patch => S.db.doc('config/main').set({ ...S.cfg, ...patch });
+/* 주문확인 비밀번호는 날짜가 바뀌면 4자리 난수로 자동 교체(직접 바꾼 비밀번호도 그날 하루만 유지) */
+const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+const randomPw = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 10000).padStart(4, '0');
+let rotating = false;
+async function rotateCheckPw() {
+  if (!S.loaded.cfg || rotating || S.cfg.checkPwDate === todayKey()) return;
+  rotating = true;
+  try { await saveCfg({ checkPw: randomPw(), checkPwDate: todayKey(), checkPwBy: 'auto' }); } catch (e) { dbErr(); }
+  finally { rotating = false; }
+}
+const saveAccounts = list => S.db.doc('config/accounts').set({ list }).then(() => { S.accounts = list; });
+const logEvent = (id, type, ok) => { try { S.db.collection('logs').add({ ts: Date.now(), id: String(id || '(빈 값)').slice(0, 30), type, ok: !!ok }).catch(() => {}); } catch (e) {} };
+
+function init() {
+  const pk = pickDB(); S.db = pk.db; S.dbMode = pk.mode;
+  if (S.dbMode === 'sheet') S.db.onStatus = () => { paintBanner(); paint('sheetState'); };
+  if (S.db === LocalDB && LocalDB.isEmpty() && localStorage.getItem(LEGACY_KEY)) importLegacy(true);
+  S.db.doc('config/main').onSnapshot(s => {
+    const d = s.exists ? s.data() : null;
+    S.cfg = { menu: Array.isArray(d?.menu) ? d.menu : [], checkPw: d?.checkPw || '1234', checkPwDate: d?.checkPwDate || '', checkPwBy: d?.checkPwBy || '' };
+    S.loaded.cfg = true; paintAll(); rotateCheckPw();
+  }, dbErr);
+  S.db.doc('config/image').onSnapshot(s => { S.img = s.exists ? s.data().data || null : null; paintAll(); }, dbErr);
+  S.db.doc('config/accounts').onSnapshot(s => { const d = s.exists ? s.data() : null; S.accounts = Array.isArray(d?.list) ? d.list : null; onAccounts(); }, dbErr);
+  S.db.doc('config/brands').onSnapshot(s => { S.brands = (s.exists && s.data().map) || {}; paintAll(); }, dbErr);
+  S.db.collection('orders').onSnapshot(q => {
+    S.orders = q.docs.map(x => ({ ...x.data(), id: x.id })); S.loaded.orders = true; paintAll();
+  }, dbErr);
+  S.db.collection('logs').orderBy('ts', 'desc').limit(200).onSnapshot(q => { S.logs = q.docs.map(x => x.data()); paintAll(); }, () => {});
+}
+function onAccounts() {
+  if (S.session && !me()) { S.session = null; if (S.view === 'settings') renderView(); return; } // 다른 곳에서 계정이 삭제됨
+  if (S.view === 'settings' && S.session && !visibleTabs().some(t => t.k === S.tab)) renderView();
+  else paintAll();
+}
+
+/* 이전 버전(v1.x · v2.0 단일 파일) 데이터 → v3 구조 */
+async function importLegacy(silent) {
+  const old = lsGet(LEGACY_KEY, null);
+  if (!old || !Array.isArray(old.users)) { if (!silent) toast('가져올 이전 버전 데이터가 없습니다.', 'err'); return; }
+  const tempMap = { both: ['HOT', 'ICE'], hot: ['HOT'], ice: ['ICE'], none: ['-'] };
+  const menu = [];
+  (old.menus || []).forEach(m => (tempMap[m.temp] || ['-']).forEach(t => menu.push({ id: 'm' + uid(), name: String(m.name).slice(0, 40), temp: t, price: Number(m.price) || 0 })));
+  const orders = {};
+  (old.orders || []).forEach(o => { orders[o.id || uid()] = { ts: o.time, name: o.name, menu: o.menu, temp: o.temp === 'HOT' || o.temp === 'ICE' ? o.temp : '-', price: Number(o.price) || 0, paid: !!o.paid }; });
+  const list = old.users.map(u => ({ id: u.username, ph: hash(u.username, u.password), role: u.role === 'admin' ? 'admin' : 'user', must: !!u.mustChange, perms: u.sections || undefined }));
+  const logs = {};
+  (old.logs || []).forEach((l, i) => { logs['legacy' + i] = { ts: l.time, id: l.username, type: 'login', ok: l.result === '성공' }; });
+  const data = { config: { main: { menu, checkPw: old.checkPassword || '1234' }, accounts: { list } }, orders, logs };
+  if (old.menuPhoto) data.config.image = { data: old.menuPhoto, ts: Date.now() };
+  const oldBrands = lsGet(LEGACY_BRAND_KEY, null);
+  if (oldBrands) {
+    const map = {};
+    Object.entries(oldBrands).forEach(([b, l]) => { map[b] = []; (l || []).forEach(m => (tempMap[m.temp] || ['-']).forEach(t => map[b].push({ name: m.name, temp: t, price: Number(m.price) || 0 }))); });
+    data.config.brands = { map };
+  }
+  try {
+    await LocalDB.restore(data, 'merge');
+    toast(`이전 버전 데이터를 가져왔습니다 (메뉴 ${menu.length}행 · 주문 ${Object.keys(orders).length}건).`, 'ok', 4000);
+  } catch (e) { toast('이전 데이터를 가져오지 못했습니다. 저장 공간이 부족할 수 있습니다.', 'err'); }
+}
+
+/* =====================================================================
+   화면 렌더링
+   뷰는 이동할 때 한 번 그리고, 데이터가 바뀌면 [data-paint] 영역만 다시 그린다(입력 중인 칸을 지키기 위해).
+   ===================================================================== */
+const PAINT = {};
+function paint(name, force) { $$(`[data-paint="${name}"]`).forEach(el => PAINT[name](el, force)); }
+function paintAll() { $$('[data-paint]').forEach(el => PAINT[el.dataset.paint]?.(el)); }
+
+function paintBanner() {
+  let t = '';
+  const st = S.dbMode === 'sheet' ? S.db.status : null;
+  if (st && !st.ready) t = st.err ? `구글 시트에 연결하지 못했습니다: ${st.err}. 계속 다시 시도합니다. 설정 → 데이터 · DB에서 연결을 확인하세요.` : '구글 시트에서 데이터를 불러오는 중입니다…';
+  else if (st && st.err) t = `구글 시트와 연결이 끊겼습니다: ${st.err}. 마지막 동기화 ${st.last ? hm(st.last) : '-'}. 다시 연결되면 자동으로 이어집니다.`;
+  else if (S.dbErr) t = '저장 중 문제가 생겼습니다. 브라우저 저장 공간이 가득 찼거나 막혀 있을 수 있습니다. 설정 → 데이터 · DB에서 백업을 받아 두세요.';
+  else if (S.view === 'settings' && S.dbMode === 'fallback') t = 'DB 연결 정보(또는 어댑터)가 없어 이 브라우저 저장소를 사용하고 있습니다.';
+  $('#banner').innerHTML = t ? `<div class="note warn" role="status">${esc(t)}</div>` : '';
+}
+function go(view) { if (location.hash !== '#' + view) location.hash = view; else route(); }
+function route() {
+  const v = (location.hash || '#order').slice(1);
+  const next = ['order', 'check', 'settings'].includes(v) ? v : 'order';
+  if (S.view === 'check' && next !== 'check') S.checkOk = false; // 주문확인은 나갈 때 잠금
+  S.view = next; renderView();
+}
+function renderView() {
+  $$('.nav [data-go]').forEach(b => { if (b.dataset.go === S.view) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  paintBanner();
+  const m = $('#main');
+  m.innerHTML = S.view === 'order' ? orderView() : S.view === 'check' ? checkView() : settingsView();
+  $$('[data-paint]', m).forEach(el => PAINT[el.dataset.paint](el, true));
+  const f = $('[autofocus]', m); if (f && S.view !== 'order') f.focus();
+}
+
+/* ---------------- 주문하기 ---------------- */
+function orderView() {
+  return `<section class="order">
+    <div class="hero"><h2>무엇을 드시겠어요?</h2><p>이름을 적고, 메뉴판에서 원하는 메뉴의 HOT 또는 ICE를 눌러 고른 뒤 주문하세요.</p></div>
+    <div class="card"><label class="lbl" for="oname">주문자 이름</label>
+      <input id="oname" class="inp name-inp" maxlength="20" autocomplete="off" placeholder="예) 김민수" value="${esc(S.name)}"></div>
+    <div data-paint="mine"></div>
+    <div>
+      <div class="menu-tools"><h2>메뉴</h2>
+        <input id="mq" class="inp" type="search" placeholder="메뉴 검색" value="${esc(S.q)}" aria-label="메뉴 검색" data-paint="searchBox">
+        <span data-paint="photoBtn"></span></div>
+      <div data-paint="menuGrid"></div>
+    </div>
+    <div class="obar" data-paint="orderBar"></div>
+  </section>`;
+}
+function menuGroups() {
+  const map = new Map();
+  S.cfg.menu.forEach(m => { const k = String(m.name).trim(); if (!map.has(k)) map.set(k, { name: k, items: [] }); map.get(k).items.push(m); });
+  const groups = [...map.values()];
+  groups.forEach(g => g.items.sort((a, b) => (TEMP_ORDER[a.temp] ?? 3) - (TEMP_ORDER[b.temp] ?? 3)));
+  return groups;
+}
+PAINT.searchBox = el => { el.classList.toggle('hidden', menuGroups().length < 8 && !S.q); };
+PAINT.photoBtn = el => { el.innerHTML = S.img ? '<button class="btn sm" data-act="photo">🖼️ 메뉴판 사진</button>' : ''; };
+PAINT.menuGrid = el => {
+  if (!S.loaded.cfg) { el.innerHTML = '<div class="empty">메뉴를 불러오는 중입니다…</div>'; return; }
+  const all = menuGroups();
+  if (!all.length) { el.innerHTML = '<div class="empty">아직 등록된 메뉴가 없습니다.<br>설정 → 메뉴 관리에서 메뉴판 사진이나 CSV로 메뉴를 등록하세요.</div>'; return; }
+  const q = normName(S.q), groups = q ? all.filter(g => normName(g.name).includes(q)) : all;
+  if (!groups.length) { el.innerHTML = `<div class="empty">'${esc(S.q)}'에 맞는 메뉴가 없습니다.</div>`; return; }
+  const btn = (g, i, cls, tag, wide) => `<button class="tbtn ${cls}${wide ? ' wide' : ''}" data-act="pick" data-id="${esc(i.id)}" aria-pressed="${S.pick === i.id}" aria-label="${esc(g.name)} ${tag} ${won(i.price)}"><small>${tag}</small>${won(i.price)}</button>`;
+  el.innerHTML = '<div class="mlist" role="list"><div class="mhead" aria-hidden="true"><span>메뉴</span><span class="h">HOT</span><span class="i">ICE</span></div>' + groups.map(g => {
+    const hot = g.items.find(i => i.temp === 'HOT'), ice = g.items.find(i => i.temp === 'ICE'), none = g.items.find(i => i.temp === '-');
+    const cells = hot || ice
+      ? (hot ? btn(g, hot, 'hot', 'HOT') : '<span class="tna">HOT 없음</span>') + (ice ? btn(g, ice, 'ice', 'ICE') : '<span class="tna">ICE 없음</span>')
+      : btn(g, none, 'none', '온도 없음', true);
+    return `<div class="mrow${g.items.some(i => i.id === S.pick) ? ' on' : ''}" role="listitem"><div class="mname">${esc(g.name)}</div>${cells}</div>`;
+  }).join('') + '</div>';
+};
+PAINT.orderBar = el => {
+  if (!S.cfg.menu.length) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  const m = S.pick && S.cfg.menu.find(x => x.id === S.pick);
+  if (S.pick && !m) S.pick = null;
+  const who = S.name.trim() ? `${esc(S.name.trim())}님` : '<span style="color:var(--bad)">이름을 입력해 주세요</span>';
+  el.innerHTML = m
+    ? `<div class="sel"><b>${esc(m.name)}</b> ${chip(m.temp)} <span class="num" style="font-weight:700">${won(m.price)}</span><small>${who}</small></div>
+       <button class="btn primary lg" data-act="submit" ${S.busy || S.cooling ? 'disabled' : ''}>${S.busy ? '주문 중…' : '주문'}</button>`
+    : `<div class="sel"><b>메뉴를 골라 주세요</b><small>${who} · 메뉴판에서 HOT 또는 ICE를 누르면 선택됩니다</small></div>
+       <button class="btn primary lg" disabled>주문</button>`;
+};
+PAINT.mine = el => {
+  const nm = normName(S.name);
+  const mine = nm && S.loaded.orders ? S.orders.filter(o => normName(o.name) === nm).sort((a, b) => (a.ts || 0) - (b.ts || 0)) : [];
+  if (!mine.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div class="mine"><div class="mine-head"><h3>${esc(S.name.trim())}님의 주문</h3><span class="num" style="font-weight:700">${mine.length}건 · ${won(sum(mine))}</span></div>
+    <p class="hint" style="margin-bottom:6px">이미 주문한 내역이 있어요. 추가로 주문하면 함께 집계됩니다.</p>` +
+    mine.map(o => `<div class="mine-it"><span class="t">${hms(o.ts)}</span><span>${labelHtml(o)} ${o.paid ? '<span class="badge good">입금완료</span>' : ''}</span><span class="num" style="font-weight:700">${won(o.price)}</span>
+      <button class="btn sm" data-act="cancel" data-id="${esc(o.id)}">취소</button></div>`).join('') + '</div>';
+};
+async function submitOrder() {
+  const inp = $('#oname'), name = (inp ? inp.value : S.name).trim();
+  if (!name) { toast('이름을 먼저 입력해 주세요.', 'err'); if (inp) { inp.focus(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); } return; }
+  const m = S.pick && S.cfg.menu.find(x => x.id === S.pick);
+  if (!m) { toast('메뉴를 먼저 골라 주세요.', 'err'); return; }
+  if (S.busy || S.cooling) return;
+  S.busy = true; paint('orderBar');
+  const now = Date.now();
+  const ok = await guard(S.db.collection('orders').doc().set({ ts: now, name, mid: m.id, menu: m.name, temp: m.temp, price: Number(m.price) || 0, paid: false }), '주문을 저장하지 못했습니다. 다시 눌러 주세요.');
+  S.busy = false;
+  if (ok) {
+    S.name = name; lsSet('cafe-name', name); S.pick = null;
+    S.cooling = true; setTimeout(() => { S.cooling = false; paint('orderBar'); }, 1500); // 두 번 눌림 방지
+    toast(`${label({ menu: m.name, temp: m.temp })} 주문 완료 · ${hms(now)}`, 'ok');
+  }
+  paint('menuGrid'); paint('orderBar'); paint('mine');
+}
+
+/* ---------------- 주문확인 ---------------- */
+function checkView() {
+  const viaLogin = !S.checkOk && !!me(); // 설정에 로그인한 상태면 비밀번호 없이 연다
+  if (!S.checkOk && !viaLogin) return `<form id="f-check" class="card narrow stack"><div><h2>주문확인</h2><p class="hint">주문 내역을 보려면 비밀번호를 입력하세요.</p></div>
+    <div><label class="lbl" for="cpw">비밀번호</label><input id="cpw" class="inp" type="password" autocomplete="off" autofocus></div>
+    <div id="chkMsg"></div><button class="btn primary lg" type="submit">확인</button></form>`;
+  return `<div class="page-head"><div><h2>주문 내역</h2>${viaLogin ? `<p class="hint">설정에 ${esc(S.session.id)}(으)로 로그인되어 있어 비밀번호 없이 열었습니다.</p>` : ''}</div><div class="row">
+      <button class="btn sm" data-act="shareText">💬 텍스트 공유</button><button class="btn sm" data-act="shareImage">🖼️ 이미지 공유</button>${viaLogin ? '' : '<button class="btn sm" data-act="lock">🔒 잠금</button>'}</div></div>
+    <div data-paint="checkBody"></div>`;
+}
+function sortOrders(list) {
+  const a = list.slice(), t = (x, y) => (x.ts || 0) - (y.ts || 0);
+  if (S.sort === 'old') a.sort(t);
+  else if (S.sort === 'name') a.sort((x, y) => String(x.name).localeCompare(String(y.name), 'ko') || t(x, y));
+  else if (S.sort === 'menu') a.sort((x, y) => String(x.menu).localeCompare(String(y.menu), 'ko') || String(x.temp).localeCompare(String(y.temp)) || String(x.name).localeCompare(String(y.name), 'ko'));
+  else a.sort((x, y) => t(y, x));
+  return a;
+}
+function aggregate(list) {
+  const g = new Map();
+  list.forEach(o => {
+    const k = label(o);
+    if (!g.has(k)) g.set(k, { key: k, menu: o.menu, temp: o.temp, count: 0, unit: Number(o.price) || 0, total: 0, names: [] });
+    const v = g.get(k); v.count++; v.total += Number(o.price) || 0; v.names.push(o.name);
+  });
+  return [...g.values()].sort((a, b) => a.menu.localeCompare(b.menu, 'ko') || String(a.temp).localeCompare(String(b.temp)));
+}
+function kpis(list) {
+  const total = sum(list), paid = sum(list.filter(o => o.paid));
+  return `<div class="kpis"><div class="kpi main"><span>합계</span><strong>${won(total)}</strong></div><div class="kpi"><span>주문</span><strong>${list.length}건</strong></div>
+    <div class="kpi"><span>입금 확인</span><strong>${won(paid)}</strong></div><div class="kpi"><span>미입금</span><strong>${won(total - paid)}</strong></div></div>`;
+}
+const sortSeg = () => '<div class="seg" role="group" aria-label="정렬">' + SORTS.map(([v, t]) => `<button data-act="sort" data-v="${v}" aria-pressed="${S.sort === v}">${t}</button>`).join('') + '</div>';
+function summaryTable(list) {
+  const rows = aggregate(list);
+  if (!rows.length) return '';
+  return `<div class="card"><div class="sec-head"><h3>메뉴별 수량</h3><label class="check"><input type="checkbox" data-act="names" ${S.showNames ? 'checked' : ''}> 주문자 표시</label></div>
+    <div class="scroll"><table class="tbl"><thead><tr><th>메뉴</th><th class="r">수량</th><th class="r">단가</th><th class="r">합계</th></tr></thead><tbody>` +
+    rows.map(v => `<tr><td>${labelHtml(v)}${S.showNames ? `<span class="who">${v.names.map(esc).join(', ')}</span>` : ''}</td><td class="r p">${v.count}</td><td class="r p">${won(v.unit)}</td><td class="r p">${won(v.total)}</td></tr>`).join('') +
+    `</tbody></table></div></div>`;
+}
+function ordersTable(list, admin) {
+  if (!list.length) return '<div class="empty">아직 들어온 주문이 없습니다.</div>';
+  return `<div class="scroll"><table class="tbl"><thead><tr><th>시간</th><th>이름</th><th>메뉴</th><th class="r">가격</th><th>입금</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>` +
+    sortOrders(list).map(o => `<tr class="${o.paid ? 'paid' : ''}"><td class="t" title="${esc(fullT(o.ts))}">${hm(o.ts)}</td><td class="dim">${esc(o.name)}</td><td class="dim">${labelHtml(o)}</td><td class="r p dim">${won(o.price)}</td>
+      <td>${admin ? `<input type="checkbox" data-act="paid" data-id="${esc(o.id)}" aria-label="${esc(o.name)} 입금 확인" ${o.paid ? 'checked' : ''}>` : `<span class="badge ${o.paid ? 'good' : ''}">${o.paid ? '입금완료' : '미입금'}</span>`}</td>
+      ${admin ? `<td class="r"><button class="btn sm danger" data-act="delOrder" data-id="${esc(o.id)}">삭제</button></td>` : ''}</tr>`).join('') +
+    '</tbody></table></div>';
+}
+PAINT.checkBody = el => {
+  if (!S.loaded.orders) { el.innerHTML = '<div class="empty">주문을 불러오는 중입니다…</div>'; return; }
+  el.innerHTML = kpis(S.orders) + summaryTable(S.orders) +
+    `<div class="card"><div class="sec-head"><h3>주문 목록</h3>${sortSeg()}</div>${ordersTable(S.orders, false)}</div>`;
+};
+
+/* ---------------- 공유 / 내보내기 ---------------- */
+function shareText() {
+  const d = new Date(), list = sortOrders(S.orders);
+  const qty = aggregate(list).map(v => `${label(v)} ${v.count}개`).join('\n') || '없음';
+  const detail = list.map(o => `${o.name} / ${label(o)} / ${won(o.price)}`).join('\n') || '없음';
+  return `[${d.getMonth() + 1}/${d.getDate()} 카페 주문]\n\n■ 메뉴별 수량\n${qty}\n\n■ 주문자별\n${detail}\n\n합계 ${list.length}건 / ${won(sum(list))}`;
+}
+function summaryImage(withPaid) {
+  const rows = sortOrders(S.orders), d = new Date();
+  const lines = [
+    [`${d.getMonth() + 1}/${d.getDate()} 카페 주문 ${withPaid ? '현황' : '내역'}`, 'title'], ['', ''],
+    ['메뉴별 수량', 'head'], ...aggregate(rows).map(v => [`${label(v)}   ${v.count}개   ${won(v.total)}`, '']), ['', ''],
+    ['주문 목록', 'head'], ...rows.map(o => [`${hm(o.ts)}   ${o.name}   ${label(o)}   ${won(o.price)}${withPaid ? '   ' + (o.paid ? '입금완료' : '미입금') : ''}`, '']), ['', ''],
+    [`합계 ${rows.length}건 / ${won(sum(rows))}`, 'head'],
+  ];
+  const padX = 36, lineH = 32, c = document.createElement('canvas'), ctx = c.getContext('2d');
+  c.width = 1000; c.height = padX * 2 + lines.length * lineH;
+  ctx.fillStyle = '#FBF8F4'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = '#6B3E26'; ctx.fillRect(0, 0, 10, c.height);
+  ctx.textBaseline = 'top';
+  const font = '"Pretendard Variable","Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+  lines.forEach(([t, kind], i) => {
+    ctx.font = (kind === 'title' ? '800 26px ' : kind === 'head' ? '700 19px ' : '18px ') + font;
+    ctx.fillStyle = kind ? '#6B3E26' : '#2A211C';
+    ctx.fillText(t, padX, padX + i * lineH, c.width - padX * 2);
+  });
+  return new Promise(r => c.toBlob(r, 'image/png'));
+}
+async function doShareText() {
+  const text = shareText();
+  if (navigator.share) { try { await navigator.share({ title: '카페 주문 내역', text }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(text); toast('주문 내역을 복사했습니다. 메신저에 붙여넣으세요.', 'ok'); }
+  catch (e) { toast('자동 복사가 막혀 있습니다. 설정 → 공유 탭에서 직접 복사해 주세요.', 'err'); }
+}
+async function doShareImage() {
+  const blob = await summaryImage(false); if (!blob) return;
+  const file = new File([blob], `cafe-order_${fileStamp()}.png`, { type: 'image/png' });
+  if (navigator.canShare?.({ files: [file] })) { try { await navigator.share({ title: '카페 주문 내역', files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  download(file.name, blob); toast('이미지를 저장했습니다. 저장한 이미지를 공유해 주세요.', 'ok');
+}
+const statusOf = o => o.paid ? '입금완료' : '미입금';
+const exportOrders = () => download(`cafe-orders_${fileStamp()}.csv`, toCSV([['주문시간', '이름', '메뉴', '구분', '가격', '입금여부'], ...sortOrders(S.orders).map(o => [fullT(o.ts), o.name, o.menu, TEMP_KO[o.temp] || '', o.price, statusOf(o)])]), 'text/csv');
+function exportAll() {
+  const rows = [['구분', '시간', '이름', '메뉴', '온도', '가격', '입금여부', '수량']];
+  S.cfg.menu.forEach(m => rows.push(['등록메뉴', '', '', m.name, TEMP_KO[m.temp] || '', m.price, '', '']));
+  S.orders.slice().sort((a, b) => a.ts - b.ts).forEach(o => rows.push(['주문내역', fullT(o.ts), o.name, o.menu, TEMP_KO[o.temp] || '', o.price, statusOf(o), '']));
+  aggregate(S.orders).forEach(v => rows.push(['메뉴별현황', '', '', v.menu, TEMP_KO[v.temp] || '', v.total, '', v.count]));
+  rows.push(['합계', '', '', '', '', sum(S.orders), '', S.orders.length]);
+  download(`cafe-order-full_${fileStamp()}.csv`, toCSV(rows), 'text/csv');
+}
+const exportImage = async () => { const b = await summaryImage(true); if (b) download(`cafe-order-summary_${fileStamp()}.png`, b); };
+
+/* ---------------- 설정 ---------------- */
+function settingsView() {
+  if (!S.session) return `<form id="f-login" class="card narrow stack"><div><h2>설정 로그인</h2><p class="hint">관리자 또는 사용자 계정으로 로그인하세요.</p></div>
+    <div><label class="lbl" for="lid">아이디</label><input id="lid" class="inp" autocomplete="username" autocapitalize="none" autofocus></div>
+    <div><label class="lbl" for="lpw">비밀번호</label><input id="lpw" class="inp" type="password" autocomplete="current-password"></div>
+    <div id="loginMsg"></div><button class="btn primary lg" type="submit">로그인</button></form>`;
+  if (me()?.must) return `<form id="f-must" class="card narrow stack"><div><h2>비밀번호 변경</h2><p class="hint">처음 로그인하셨거나 비밀번호가 초기화되었습니다. 새 비밀번호를 정해 주세요. (4자 이상, 1234 제외)</p></div>
+    <div><label class="lbl" for="np1">새 비밀번호</label><input id="np1" class="inp" type="password" autocomplete="new-password" autofocus></div>
+    <div><label class="lbl" for="np2">새 비밀번호 확인</label><input id="np2" class="inp" type="password" autocomplete="new-password"></div>
+    <div id="mustMsg"></div><div class="row"><button class="btn" type="button" data-act="logout">취소</button><button class="btn primary grow" type="submit">변경하고 시작</button></div></form>`;
+  const tabs = visibleTabs();
+  if (!tabs.some(t => t.k === S.tab)) S.tab = tabs[0].k;
+  return `<div class="settings">
+    <aside class="side">
+      <div class="who"><b>${esc(S.session.id)}</b><span class="hint">${isAdmin() ? '관리자' : '사용자'} · ${{ local: '이 브라우저에 저장', fallback: '브라우저 저장(연결 정보 없음)', sheet: '구글 시트', remote: '원격 DB', custom: '외부 DB' }[S.dbMode]}</span>
+        <div data-paint="sidePw"></div>
+        <div style="margin-top:8px"><button class="btn sm" data-act="logout">로그아웃</button></div></div>
+      <nav class="stabs" role="tablist" aria-label="설정 메뉴" data-paint="stabs"></nav>
+    </aside>
+    <section id="tabBody">${(TAB_HTML[S.tab] || (() => ''))()}</section>
+  </div>`;
+}
+PAINT.stabs = el => {
+  el.innerHTML = visibleTabs().map(t => `<button class="stab" role="tab" data-act="tab" data-v="${t.k}" aria-selected="${S.tab === t.k}">${t.label}${t.k === 'menu' && S.dirty ? '<span class="dot" title="저장하지 않은 변경"></span>' : ''}</button>`).join('');
+};
+
+const TAB_HTML = {
+  menu: () => `
+    <div class="card"><h3>메뉴판 사진</h3><p class="hint">사진을 올리면 주문 화면에서 볼 수 있고, AI 또는 기기 내 글자 인식(OCR)으로 메뉴표를 만들 수 있습니다.</p>
+      <div data-paint="photoBox"></div><div id="photoMsg"></div></div>
+    <div class="card"><h3>메뉴 가져오기</h3><p class="hint">CSV(열: 메뉴, 구분, 가격) 또는 한 줄에 하나씩 적은 텍스트로 메뉴표를 채웁니다. 구분은 핫 / 아이스 / 핫/아이스(두 행으로 나뉨) / 비움.</p>
+      <div class="row" style="margin-bottom:10px"><label class="lbl" for="impMode2" style="margin:0">가져오는 방식</label>
+        <select id="impMode2" class="inp s" style="width:auto"><option value="replace">메뉴표 바꾸기</option><option value="append">메뉴표 뒤에 추가</option></select></div>
+      <div class="row"><label class="btn" for="menuCsv">📄 CSV 파일 선택</label><button class="btn sm" data-act="csvTemplate">CSV 양식 받기</button><button class="btn sm" data-act="csvExport">현재 메뉴 CSV로 저장</button></div>
+      <div id="csvMsg"></div>
+      <label class="lbl" for="bulkTxt" style="margin-top:16px">한번에 붙여넣기</label>
+      <textarea id="bulkTxt" class="inp" placeholder="아메리카노 핫/아이스 3000&#10;카페라떼 아이스 4500&#10;치즈케이크 6000"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn primary" data-act="bulkApply">메뉴표에 반영</button><button class="btn sm" data-act="bulkClear">지우기</button></div>
+      <div id="bulkMsg"></div></div>
+    <div class="card"><div class="sec-head"><div><h3>메뉴표</h3><p class="hint">메뉴 · 구분 · 가격을 고치고 저장하면 주문 화면에 바로 반영됩니다. 같은 이름의 HOT/ICE 행은 한 카드로 묶여 보입니다.</p></div></div>
+      <div data-paint="menuEditor"></div></div>`,
+  brand: () => `
+    <div class="card"><h3>브랜드별 메뉴판</h3><p class="hint">지금 저장된 메뉴를 브랜드 이름으로 보관해 두고, 다른 날 그 카페에서 주문할 때 불러옵니다.</p>
+      <div class="row"><div class="grow"><label class="lbl" for="brandSel">카페 브랜드</label><select id="brandSel" class="inp">${BRANDS.map(b => `<option>${esc(b)}</option>`).join('')}</select></div>
+        <div class="grow"><label class="lbl" for="brandCustom">직접 입력 (사용자 지정일 때)</label><input id="brandCustom" class="inp" placeholder="예) 우리 동네 카페"></div></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" data-act="brandSave">현재 메뉴를 이 브랜드로 저장</button></div>
+      <div id="brandMsg"></div></div>
+    <div class="card"><h3>저장된 메뉴판</h3><div data-paint="brandList" style="margin-top:10px"></div></div>`,
+  orders: () => `<div data-paint="ordersAdmin"></div>`,
+  share: () => `<div data-paint="shareBox"></div>`,
+  checkpw: () => `
+    <div class="card"><h3>오늘의 주문확인 비밀번호</h3><p class="hint">주문확인 화면에 들어갈 때 쓰는 비밀번호입니다. 매일 새 4자리 숫자로 자동으로 바뀌니, 주문 내역을 함께 볼 사람에게 그날 비밀번호를 알려 주세요.</p>
+      <div data-paint="checkPwNow"></div></div>
+    <form id="f-checkpw" class="card stack"><div><h3>직접 변경</h3><p class="hint">직접 정한 비밀번호는 오늘 하루 동안 쓰이고, 다음 날 다시 자동으로 바뀝니다.</p></div>
+      <div><label class="lbl" for="ncp">새 비밀번호 (4자 이상)</label><div class="row"><input id="ncp" class="inp grow" type="text" inputmode="numeric" autocomplete="off" style="width:auto"><button class="btn" type="button" data-act="randomCheckPw">🎲 새 난수</button></div></div>
+      <div id="checkPwMsg"></div><div><button class="btn primary" type="submit">저장</button></div></form>`,
+  ai: () => {
+    const d = aiDefaults(AI.provider);
+    return `<form id="f-ai" class="card stack"><div><h3>AI 연결 (메뉴판 사진 읽기)</h3><p class="hint">메뉴판 사진을 AI가 읽어 메뉴표로 만들 때 사용합니다. 키는 이 브라우저에만 저장되고, 사진을 읽을 때만 아래 주소로 전송됩니다.</p></div>
+      <div><label class="lbl" for="aiProv">제공자</label><select id="aiProv" class="inp"><option value="anthropic" ${AI.provider === 'anthropic' ? 'selected' : ''}>Claude (Anthropic)</option><option value="openai" ${AI.provider === 'openai' ? 'selected' : ''}>OpenAI 호환</option></select></div>
+      <div><label class="lbl" for="aiKey">API 키</label><div class="row"><input id="aiKey" class="inp grow" type="password" autocomplete="off" value="${esc(AI.key)}" style="width:auto" placeholder="${AI.provider === 'openai' ? 'sk-…' : 'sk-ant-…'}"><button class="btn" type="button" data-act="peek" data-for="aiKey">보기</button></div></div>
+      <div><label class="lbl" for="aiModel">모델</label><input id="aiModel" class="inp" value="${esc(AI.model)}" placeholder="${esc(d.model)}" autocomplete="off"></div>
+      <div><label class="lbl" for="aiEp">요청 주소 (비우면 기본값)</label><input id="aiEp" class="inp" value="${esc(AI.endpoint)}" placeholder="${esc(d.endpoint)}" autocomplete="off"></div>
+      <div id="aiMsg"></div>
+      <div class="row"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" data-act="aiTest">연결 테스트</button><button class="btn danger" type="button" data-act="aiClear">키 삭제</button></div>
+      <p class="hint">공용 기기에서는 사용 후 「키 삭제」를 누르세요. 여러 기기에서 쓰는 서비스로 만들 때는 키를 서버에 두는 방식이 안전합니다.</p></form>`;
+  },
+  data: () => `
+    <div class="card"><h3>백업 / 이동</h3><p class="hint">메뉴·사진·주문·계정·로그·브랜드 메뉴판을 JSON 파일 하나로 내보내고 가져옵니다. 다른 기기로 옮기거나 나중에 DB로 옮길 때도 이 파일을 씁니다.</p>
+      <div class="row"><button class="btn primary" data-act="backup">전체 백업 내보내기</button><label class="btn" for="dbImport">백업 가져오기</label>
+        <select id="impMode" class="inp s" style="width:auto" aria-label="가져오기 방식"><option value="merge">합치기 (같은 항목은 덮어씀)</option><option value="replace">전부 바꾸기</option></select></div>
+      <div id="dbMsg"></div></div>
+    <div class="card"><h3>이전 버전 데이터</h3><p class="hint">v1.x · v2.0(단일 파일 버전)에서 쓰던 이 브라우저의 메뉴·주문·계정·브랜드 메뉴판을 가져와 합칩니다. 처음 실행할 때 저장된 데이터가 없으면 자동으로 가져옵니다.</p>
+      <button class="btn" data-act="legacy" ${localStorage.getItem(LEGACY_KEY) ? '' : 'disabled'}>이전 버전 데이터 가져오기</button></div>
+    <form id="f-conn" class="card stack"><div><h3>DB 연결</h3><p class="hint">여러 기기에서 같은 메뉴·주문·비밀번호를 쓰려면 구글 시트에 연결하세요. 연결 정보는 이 브라우저에만 저장되므로 기기마다 한 번씩 입력합니다.</p></div>
+      <div data-paint="sheetState"></div>
+      <div><label class="lbl" for="cnType">저장 방식</label><select id="cnType" class="inp">
+        <option value="local" ${CONN.type === 'local' ? 'selected' : ''}>이 브라우저 (단독 실행)</option>
+        <option value="sheet" ${CONN.type === 'sheet' ? 'selected' : ''}>구글 시트 (Apps Script 웹 앱)</option>
+        <option value="remote" ${CONN.type === 'remote' ? 'selected' : ''}>직접 만든 DB 어댑터 (ADAPTERS.remote)</option></select></div>
+      <div><label class="lbl" for="cnUrl">웹 앱 URL</label><input id="cnUrl" class="inp" value="${esc(CONN.url)}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+      <div><label class="lbl" for="cnTok">토큰 (Apps Script의 TOKEN)</label><div class="row"><input id="cnTok" class="inp grow" type="password" value="${esc(CONN.token)}" autocomplete="off" style="width:auto"><button class="btn" type="button" data-act="peek" data-for="cnTok">보기</button></div></div>
+      <div id="cnMsg"></div>
+      <div class="row"><button class="btn primary" type="submit">저장하고 다시 연결</button><button class="btn" type="button" data-act="connTest">연결 테스트</button></div>
+      <p class="hint">저장하면 페이지를 새로 불러옵니다. 구글 시트로 바꾸면 계정도 시트 기준이 되므로 다시 로그인해 주세요(빈 시트면 처음 계정 admin / 1234).</p></form>
+    <div class="card stack"><div><h3>구글 시트 준비하기</h3>
+      <ol class="hint" style="margin:6px 0 0;padding-left:20px;line-height:1.8">
+        <li>sheets.new 에서 새 구글 시트를 만듭니다.</li>
+        <li><b>확장 프로그램 → Apps Script</b>를 열고, 기존 코드를 지운 뒤 아래 코드를 붙여넣습니다.</li>
+        <li>코드 첫 부분의 <code>TOKEN</code> 값을 길고 임의의 문자열로 바꾸고 저장합니다.</li>
+        <li><b>배포 → 새 배포 → 웹 앱</b>, 실행 계정 「나」, 액세스 권한 「모든 사용자」로 배포하고 권한을 승인합니다.</li>
+        <li>나온 웹 앱 URL과 TOKEN을 위 칸에 넣고 「연결 테스트」 후 저장합니다.</li>
+      </ol></div>
+      <div class="row"><button class="btn primary" type="button" data-act="copyScript">Apps Script 코드 복사</button><button class="btn" type="button" data-act="showScript">코드 보기</button></div>
+      <textarea id="scriptBox" class="inp" readonly hidden rows="14" spellcheck="false" style="font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre">${esc(SHEET_SCRIPT)}</textarea>
+      <div id="scriptMsg"></div>
+      <p class="hint">코드를 고친 뒤에는 <b>배포 관리 → 수정 → 새 버전</b>으로 다시 배포해야 반영됩니다.</p></div>
+    <div class="card"><h3>이 브라우저 데이터를 시트로 옮기기</h3><p class="hint">구글 시트에 연결한 뒤, 전에 이 브라우저에만 저장해 둔 메뉴·사진·주문·계정·브랜드 메뉴판을 시트에 올립니다. 같은 항목은 덮어씁니다.</p>
+      <button class="btn" type="button" data-act="sheetUpload" ${S.dbMode === 'sheet' && !LocalDB.isEmpty() ? '' : 'disabled'}>이 브라우저 데이터를 시트로 올리기</button><div id="upMsg"></div></div>`,
+  accounts: () => `
+    <form id="f-acct" class="card"><h3>사용자 계정 추가</h3><p class="hint">처음 로그인할 때 비밀번호를 바꾸게 됩니다.</p>
+      <div class="row"><div class="grow"><label class="lbl" for="nid">아이디</label><input id="nid" class="inp" maxlength="20" autocomplete="off" autocapitalize="none" placeholder="예) order2"></div>
+        <div class="grow"><label class="lbl" for="npw">초기 비밀번호 (비우면 1234)</label><input id="npw" class="inp" type="password" autocomplete="new-password"></div></div>
+      <div class="perm-grid">${PERMS.map(([k, t]) => `<label class="check"><input type="checkbox" data-newperm="${k}" checked> ${t}</label>`).join('')}</div>
+      <div id="acctMsg"></div><button class="btn primary" type="submit">계정 추가</button></form>
+    <div class="card"><h3>계정 목록 · 권한</h3><p class="hint">관리자는 모든 메뉴를 봅니다. 사용자는 체크한 메뉴만 설정에서 볼 수 있습니다.</p><div data-paint="acctList"></div></div>`,
+  logs: () => `<div class="card"><h3>로그인 기록</h3><p class="hint">최근 200건</p><div data-paint="logList"></div></div>`,
+  mypw: () => `
+    <form id="f-mypw" class="card stack narrow" style="margin:0;max-width:460px"><div><h3>내 비밀번호 변경</h3><p class="hint">${esc(S.session.id)} 계정</p></div>
+      <div><label class="lbl" for="mp0">현재 비밀번호</label><input id="mp0" class="inp" type="password" autocomplete="current-password"></div>
+      <div><label class="lbl" for="mp1">새 비밀번호 (4자 이상, 1234 제외)</label><input id="mp1" class="inp" type="password" autocomplete="new-password"></div>
+      <div><label class="lbl" for="mp2">새 비밀번호 확인</label><input id="mp2" class="inp" type="password" autocomplete="new-password"></div>
+      <div id="mypwMsg"></div><div><button class="btn primary" type="submit">변경</button></div></form>`,
+  release: () => `<div class="card">${RELEASES.map(([v, d, items], i) => `<div class="release${i ? '' : ' cur'}"><b>${v}</b> <span class="hint">${d}${i ? '' : ' · 현재 버전'}</span><ul>${items.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div>`,
+};
+
+/* 메뉴 관리 */
+PAINT.photoBox = el => {
+  const aiTxt = aiReady() ? `AI 연결됨 (${AI.provider === 'openai' ? 'OpenAI 호환' : 'Claude'} · ${esc(AI.model)})` : 'AI 키가 없습니다' + (isAdmin() ? ' — AI 연결 탭에서 입력하세요' : ' — 관리자에게 요청하세요');
+  el.innerHTML = `<div class="photo-row">${S.img ? `<img class="thumb" src="${esc(S.img)}" alt="메뉴판 사진" data-act="photo">` : '<div class="thumb empty">사진 없음</div>'}
+    <div class="stack" style="gap:10px;flex:1;min-width:220px">
+      <div class="row"><label class="btn" for="menuPhoto">📷 ${S.img ? '사진 바꾸기' : '사진 선택'}</label>${S.img ? '<button class="btn danger" data-act="rmPhoto">사진 삭제</button>' : ''}</div>
+      <div class="row"><button class="btn primary" data-act="readAI" ${S.img && !S.reading ? '' : 'disabled'}>🤖 AI로 메뉴 읽기</button><button class="btn" data-act="readOCR" ${S.img && !S.reading ? '' : 'disabled'}>🔤 기기에서 읽기 (OCR)</button></div>
+      <p class="hint">${aiTxt}<br>OCR은 키 없이 무료로 동작하지만 정확도가 낮을 수 있어요. 읽은 결과는 아래 메뉴표에 채워지며, 확인 후 저장해야 반영됩니다.</p></div></div>`;
+};
+function markDirty() {
+  S.dirty = true;
+  const b = $('#saveMenu'); if (b) b.disabled = false;
+  const r = $('#revertMenu'); if (r) r.disabled = false;
+  const c = $('#dirtyNote'); if (c) c.textContent = '저장하지 않은 변경이 있습니다.';
+  paint('stabs');
+}
+PAINT.menuEditor = (el, force) => {
+  if (S.dirty && !force && el.childElementCount) return; // 편집 중이면 다른 곳의 변경으로 덮어쓰지 않음
+  if (!S.dirty) S.draft = S.cfg.menu.map(x => ({ ...x }));
+  const n = S.draft.length;
+  const rows = S.draft.map((m, i) => `<div class="erow">
+      <input class="inp s" data-f="name" data-i="${i}" value="${esc(m.name)}" placeholder="메뉴 이름" aria-label="${i + 1}번 메뉴 이름">
+      <select class="inp s" data-f="temp" data-i="${i}" aria-label="${i + 1}번 구분">${[['HOT', 'HOT'], ['ICE', 'ICE'], ['-', '해당없음']].map(([v, t]) => `<option value="${v}" ${m.temp === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <input class="inp s" type="number" inputmode="numeric" min="0" step="100" data-f="price" data-i="${i}" value="${esc(m.price)}" aria-label="${i + 1}번 가격">
+      <button class="x mv" data-act="rowUp" data-i="${i}" aria-label="위로" ${i ? '' : 'disabled'}>▲</button>
+      <button class="x mv" data-act="rowDown" data-i="${i}" aria-label="아래로" ${i < n - 1 ? '' : 'disabled'}>▼</button>
+      <button class="x" data-act="rowDel" data-i="${i}" aria-label="행 삭제">✕</button></div>`).join('');
+  el.innerHTML = (n ? `<div class="erow h"><span>메뉴</span><span>구분</span><span>가격(원)</span></div>${rows}` : '<div class="empty">메뉴표가 비어 있습니다. 사진·CSV에서 가져오거나 직접 추가하세요.</div>') +
+    `<div class="row" style="margin-top:12px"><button class="btn" data-act="rowAdd">＋ 행 추가</button>${n ? '<button class="btn sm danger" data-act="rowClear">전체 비우기</button>' : '<button class="btn sm" data-act="sample">예시 메뉴 넣기</button>'}
+      <span class="grow"></span><span class="hint" id="dirtyNote">${S.dirty ? '저장하지 않은 변경이 있습니다.' : ''}</span>
+      <button class="btn" id="revertMenu" data-act="revertMenu" ${S.dirty ? '' : 'disabled'}>되돌리기</button><button class="btn primary" id="saveMenu" data-act="saveMenu" ${S.dirty ? '' : 'disabled'}>저장</button></div>
+    <div id="saveMsg"></div>`;
+};
+function applyDraft(rows, mode, msgSel, msg) {
+  S.draft = mode === 'append' ? S.draft.concat(rows) : rows;
+  S.dirty = true; paint('menuEditor', true); paint('stabs');
+  note(msgSel, msg, 'ok');
+  $('#saveMenu')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+async function saveMenu() {
+  const seen = new Set();
+  for (let i = 0; i < S.draft.length; i++) {
+    const m = S.draft[i], name = String(m.name).trim();
+    if (!name) return note('#saveMsg', `${i + 1}번째 메뉴 이름이 비어 있습니다.`, 'err');
+    if (!(Number(m.price) >= 0) || m.price === '') return note('#saveMsg', `${i + 1}번째 메뉴(${name})의 가격을 확인해 주세요.`, 'err');
+    const key = normName(name) + '|' + m.temp;
+    if (seen.has(key)) return note('#saveMsg', `${i + 1}번째 행이 중복입니다: ${name} ${m.temp === '-' ? '' : m.temp}`, 'err');
+    seen.add(key);
+  }
+  const menu = S.draft.map(m => ({ id: m.id || 'm' + uid(), name: String(m.name).trim().slice(0, 40), temp: m.temp, price: Math.max(0, Math.round(Number(m.price) || 0)) }));
+  if (await guard(saveCfg({ menu }))) { S.dirty = false; paint('menuEditor', true); paint('stabs'); toast(`메뉴 ${menu.length}행을 저장했습니다. 주문 화면에 바로 반영됩니다.`, 'ok'); }
+}
+async function readWithAI() {
+  if (!aiReady()) return note('#photoMsg', 'AI 연결 정보가 없습니다. ' + (isAdmin() ? 'AI 연결 탭에서 API 키를 입력해 주세요.' : '관리자에게 AI 연결을 요청하세요.'), 'err');
+  S.reading = true; paint('photoBox'); note('#photoMsg', '메뉴판을 읽는 중입니다. 최대 1분 정도 걸릴 수 있어요…');
+  try {
+    const txt = await aiCall(AI, READ_PROMPT, S.img);
+    const m = String(txt).match(/\[[\s\S]*\]/); let arr = null; try { arr = m && JSON.parse(m[0]); } catch (e) {}
+    if (!Array.isArray(arr)) throw { code: 'invalid_json' };
+    const rows = arr.map(r => ({ id: 'm' + uid(), name: String(r?.name || '').trim().slice(0, 40), temp: r?.temp === 'HOT' || r?.temp === 'ICE' ? r.temp : '-', price: Math.max(0, Math.round(Number(r?.price) || 0)) })).filter(r => r.name);
+    if (!rows.length) throw { code: 'invalid_json' };
+    note('#photoMsg', '');
+    applyDraft(rows, $('#impMode2')?.value, '#photoMsg', `${rows.length}개 메뉴 행을 읽었습니다. 메뉴표를 확인하고 저장하세요.`);
+  } catch (e) { note('#photoMsg', aiErrorText(e), 'err'); }
+  finally { S.reading = false; paint('photoBox'); }
+}
+async function readWithOCR() {
+  S.reading = true; paint('photoBox');
+  try {
+    if (!window.Tesseract) { note('#photoMsg', '글자 인식 도구를 불러오는 중입니다 (처음 한 번, 인터넷 필요)…'); await loadScript(TESSERACT_SRC); }
+    const r = await Tesseract.recognize(S.img, 'kor+eng', { logger: m => { if (m.status === 'recognizing text') note('#photoMsg', `글자 인식 중… ${Math.round(m.progress * 100)}%`); } });
+    const rows = ocrToMenu(r.data.text);
+    if (!rows.length) return note('#photoMsg', '메뉴명과 가격을 찾지 못했습니다. 더 선명한 사진을 올리거나 AI 읽기·붙여넣기를 이용해 주세요.', 'err');
+    applyDraft(rows, $('#impMode2')?.value, '#photoMsg', `${rows.length}개 메뉴 행을 찾았습니다. OCR은 틀릴 수 있으니 메뉴표를 꼭 확인하고 저장하세요.`);
+  } catch (e) { note('#photoMsg', '글자 인식에 실패했습니다. 인터넷 연결을 확인하거나 다른 방법으로 메뉴를 입력해 주세요.', 'err'); }
+  finally { S.reading = false; paint('photoBox'); }
+}
+
+/* 브랜드 메뉴판 */
+const brandName = () => { const v = $('#brandSel')?.value; return v === '사용자 지정' ? ($('#brandCustom').value.trim() || '사용자 지정') : v; };
+const saveBrands = map => S.db.doc('config/brands').set({ map });
+PAINT.brandList = el => {
+  const list = Object.entries(S.brands);
+  el.innerHTML = list.length ? '<div class="scroll"><table class="tbl"><thead><tr><th>브랜드</th><th class="r">메뉴 행</th><th></th></tr></thead><tbody>' +
+    list.map(([b, l]) => `<tr><td><b>${esc(b)}</b></td><td class="r p">${l.length}</td><td class="r" style="white-space:nowrap"><button class="btn sm primary" data-act="brandLoad" data-v="${esc(b)}">불러오기</button> <button class="btn sm danger" data-act="brandDel" data-v="${esc(b)}">삭제</button></td></tr>`).join('') +
+    '</tbody></table></div>' : '<div class="empty">저장된 브랜드 메뉴판이 없습니다.</div>';
+};
+
+/* 주문 현황 / 공유 */
+PAINT.ordersAdmin = el => {
+  if (!S.loaded.orders) { el.innerHTML = '<div class="empty">주문을 불러오는 중입니다…</div>'; return; }
+  const agg = aggregate(S.orders);
+  el.innerHTML = kpis(S.orders) +
+    `<div class="card"><div class="sec-head"><h3>내보내기 · 정리</h3></div><div class="row">
+      <button class="btn sm" data-act="exportOrders" ${S.orders.length ? '' : 'disabled'}>주문 목록 CSV</button><button class="btn sm" data-act="exportAll">전체 현황 CSV</button>
+      <button class="btn sm" data-act="exportImage" ${S.orders.length ? '' : 'disabled'}>현황 이미지 저장</button><span class="grow"></span>
+      <button class="btn sm danger" data-act="delAll" ${S.orders.length ? '' : 'disabled'}>주문 전체 삭제</button></div>
+      <p class="hint" style="margin-top:8px">전체 삭제 전에 CSV와 이미지가 자동으로 저장됩니다.</p></div>` +
+    (agg.length ? `<div class="card"><h3 style="margin-bottom:10px">메뉴별 현황</h3><div class="chips">${agg.map(v => `<div class="mchip">${labelHtml(v)} · <b>${v.count}개</b> · ${won(v.total)}</div>`).join('')}</div></div>` : '') +
+    `<div class="card"><div class="sec-head"><h3>주문 목록</h3>${sortSeg()}</div>${ordersTable(S.orders, true)}</div>`;
+};
+PAINT.shareBox = el => {
+  const list = sortOrders(S.orders);
+  el.innerHTML = `<div class="card"><h3>메신저 공유</h3><p class="hint">메뉴별 수량과 주문자별 내역, 합계가 담깁니다. 정렬은 주문 현황에서 고른 순서를 따릅니다.</p>
+      <textarea id="shareTxt" class="inp" readonly style="min-height:200px">${esc(shareText())}</textarea>
+      <div class="row" style="margin-top:10px"><button class="btn primary" data-act="copy">텍스트 복사</button><button class="btn" data-act="shareText">💬 공유하기</button><button class="btn" data-act="shareImage">🖼️ 이미지로 공유</button></div>
+      <div id="copyMsg"></div></div>
+    <div class="card"><h3 style="margin-bottom:10px">미리보기</h3>${list.length ? `<div class="scroll"><table class="tbl"><thead><tr><th>이름</th><th>메뉴</th><th class="r">가격</th></tr></thead><tbody>${list.map(o => `<tr><td>${esc(o.name)}</td><td>${labelHtml(o)}</td><td class="r p">${won(o.price)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty">공유할 주문이 아직 없습니다.</div>'}
+      <p class="hint" style="margin-top:10px">함께 볼 사람은 이 페이지의 주문확인 버튼과 비밀번호로 내역을 볼 수 있습니다.</p></div>`;
+};
+PAINT.sheetState = el => {
+  if (S.dbMode !== 'sheet') { el.innerHTML = `<div class="note">현재: ${S.dbMode === 'local' ? '이 브라우저에만 저장 중' : S.dbMode === 'fallback' ? '연결 정보가 없어 이 브라우저에 저장 중' : '외부 DB 어댑터 사용 중'}</div>`; return; }
+  const st = S.db.status;
+  el.innerHTML = !st.ready ? `<div class="note ${st.err ? 'err' : ''}">${st.err ? '연결 실패: ' + esc(st.err) : '구글 시트에 연결하는 중…'}</div>`
+    : st.err ? `<div class="note warn">연결 끊김: ${esc(st.err)} · 마지막 동기화 ${hms(st.last)}</div>`
+    : `<div class="note ok">구글 시트에 연결됨 · 마지막 동기화 ${hms(st.last)} · ${SHEET_POLL_MS / 1000}초마다 확인</div>`;
+};
+PAINT.checkPwNow = el => {
+  const by = S.cfg.checkPwBy === 'manual' ? '오늘 직접 바꾼 비밀번호' : '오늘 자동으로 만든 비밀번호';
+  el.innerHTML = `<div class="pwbig num">${esc(S.cfg.checkPw)}</div>
+    <div class="row"><span class="hint grow">${by} · ${esc(S.cfg.checkPwDate || todayKey())} · 다음 날 자동 변경</span><button class="btn sm" data-act="copyCheckPw">복사</button></div>`;
+};
+PAINT.sidePw = el => { // 설정 왼쪽 계정 상자에 오늘 비밀번호 표시
+  el.innerHTML = can('checkPassword') || can('orderPreview') ? `<div class="sidepw">주문확인 비밀번호 <b class="num">${esc(S.cfg.checkPw)}</b></div>` : '';
+};
+
+/* 계정 / 로그 */
+PAINT.acctList = el => {
+  el.innerHTML = accounts().map((a, idx) => {
+    const admin = a.role === 'admin', self = a.id === S.session?.id;
+    return `<div class="acct"><div class="row"><b class="grow">${esc(a.id)} <span class="badge">${admin ? '관리자' : '사용자'}</span>${self ? ' <span class="badge good">나</span>' : ''}</b>
+        <span class="badge ${a.must ? 'warn' : ''}">${a.must ? '비밀번호 변경 대기' : '사용 중'}</span></div>
+      ${admin ? '<p class="hint" style="margin-top:6px">관리자 계정은 모든 설정 메뉴를 볼 수 있습니다.</p>' :
+        `<div class="perm-grid">${PERMS.map(([k, t]) => `<label class="check"><input type="checkbox" data-perm="${idx}" data-key="${k}" ${a.perms?.[k] !== false ? 'checked' : ''}> ${t}</label>`).join('')}</div>
+         <div class="row"><button class="btn sm primary" data-act="permSave" data-i="${idx}">권한 저장</button><button class="btn sm" data-act="acctReset" data-i="${idx}">비밀번호 초기화(1234)</button><button class="btn sm danger" data-act="acctDel" data-i="${idx}">계정 삭제</button></div>`}</div>`;
+  }).join('');
+};
+PAINT.logList = el => {
+  el.innerHTML = S.logs.length ? '<div class="scroll"><table class="tbl"><thead><tr><th>시간</th><th>계정</th><th>내용</th></tr></thead><tbody>' +
+    S.logs.map(l => `<tr><td class="t">${esc(fullT(l.ts))}</td><td>${esc(l.id)}</td><td>${l.type === 'pwchange' ? '비밀번호 변경' : l.ok ? '<span class="badge good">로그인 성공</span>' : '<span class="badge" style="color:var(--bad)">로그인 실패</span>'}</td></tr>`).join('') +
+    '</tbody></table></div>' : '<div class="empty">아직 기록이 없습니다.</div>';
+};
+
+/* =====================================================================
+   이벤트
+   ===================================================================== */
+const ACT = {
+  theme() { const order = ['auto', 'light', 'dark'], cur = lsGet('cafe-theme', 'auto'); setTheme(order[(order.indexOf(cur) + 1) % 3]); },
+  photo() { if (!S.img) return; $('#photoImg').src = S.img; $('#photoDlg').showModal ? $('#photoDlg').showModal() : window.open(S.img); },
+  pick(t) { S.pick = S.pick === t.dataset.id ? null : t.dataset.id; paint('menuGrid'); paint('orderBar'); },
+  submit: submitOrder,
+  async cancel(t) {
+    const o = S.orders.find(x => x.id === t.dataset.id); if (!o) return;
+    if (!await ask(`${label(o)} 주문(${hms(o.ts)})을 취소할까요?`, '주문 취소', true)) return;
+    if (await guard(S.db.doc('orders/' + o.id).delete())) toast('주문을 취소했습니다.');
+  },
+  lock() { S.checkOk = false; renderView(); },
+  async copyCheckPw() {
+    try { await navigator.clipboard.writeText(S.cfg.checkPw); toast(`주문확인 비밀번호 ${S.cfg.checkPw}를 복사했습니다.`, 'ok'); }
+    catch (e) { toast('자동 복사가 막혀 있습니다. 화면의 숫자를 직접 알려 주세요.', 'err'); }
+  },
+  randomCheckPw() { $('#ncp').value = randomPw(); $('#ncp').focus(); },
+  sort(t) { S.sort = t.dataset.v; paint('checkBody'); paint('ordersAdmin'); paint('shareBox'); },
+  names(t) { S.showNames = t.checked; paint('checkBody'); },
+  shareText: doShareText,
+  shareImage: doShareImage,
+  async copy() {
+    const ta = $('#shareTxt');
+    try { await navigator.clipboard.writeText(ta.value); note('#copyMsg', '복사했습니다. 메신저에 붙여넣으세요.', 'ok'); }
+    catch (e) { ta.focus(); ta.select(); note('#copyMsg', '자동 복사가 막혀 있습니다. 선택된 글을 직접 복사해 주세요.', 'err'); }
+  },
+  async logout() {
+    if (S.dirty && !await ask('메뉴표에 저장하지 않은 변경이 있습니다. 버리고 로그아웃할까요?', '버리고 로그아웃', true)) return;
+    S.session = null; S.dirty = false; renderView();
+  },
+  tab(t) { S.tab = t.dataset.v; renderView(); window.scrollTo({ top: 0 }); },
+  async connTest() {
+    const conn = { url: $('#cnUrl').value.trim(), token: $('#cnTok').value.trim() };
+    if ($('#cnType').value !== 'sheet') return note('#cnMsg', '저장 방식을 「구글 시트」로 고른 뒤 테스트해 주세요.', 'err');
+    if (!conn.url || !conn.token) return note('#cnMsg', '웹 앱 URL과 토큰을 입력해 주세요.', 'err');
+    note('#cnMsg', '연결을 확인하는 중입니다…');
+    try { const r = await sheetCall(conn, { op: 'ping' }); note('#cnMsg', `연결 성공: 시트에 저장된 줄 ${r.rows || 0}개`, 'ok'); }
+    catch (e) { note('#cnMsg', '연결 실패: ' + sheetErrText(e), 'err'); }
+  },
+  async copyScript() {
+    try { await navigator.clipboard.writeText(SHEET_SCRIPT); note('#scriptMsg', 'Apps Script 코드를 복사했습니다. TOKEN 값을 꼭 바꿔 주세요.', 'ok'); }
+    catch (e) { $('#scriptBox').hidden = false; $('#scriptBox').select(); note('#scriptMsg', '자동 복사가 막혀 있습니다. 선택된 코드를 Ctrl+C로 복사해 주세요.', 'err'); }
+  },
+  showScript() { const b = $('#scriptBox'); b.hidden = !b.hidden; },
+  async sheetUpload() {
+    if (S.dbMode !== 'sheet' || LocalDB.isEmpty()) return;
+    if (!await ask('이 브라우저에 저장된 데이터를 구글 시트에 올릴까요? 같은 항목은 덮어씁니다.', '올리기')) return;
+    note('#upMsg', '올리는 중입니다… 사진이 있으면 조금 걸립니다.');
+    if (await guard(S.db.restore(LocalDB.dump(), 'merge'))) note('#upMsg', '시트로 올렸습니다. 다른 기기에서도 곧 보입니다.', 'ok');
+    else note('#upMsg', '올리지 못했습니다. 연결 상태를 확인해 주세요.', 'err');
+  },
+  peek(t) { const i = $('#' + t.dataset.for); i.type = i.type === 'password' ? 'text' : 'password'; t.textContent = i.type === 'password' ? '보기' : '숨기기'; },
+  // 메뉴 관리
+  async rmPhoto() { if (await ask('메뉴판 사진을 삭제할까요?', '삭제', true) && await guard(S.db.doc('config/image').delete())) note('#photoMsg', '사진을 삭제했습니다.', 'ok'); },
+  readAI: readWithAI,
+  readOCR: readWithOCR,
+  csvTemplate() { download('menu-template.csv', menuToCSV([{ name: '아메리카노', temp: 'HOT', price: 3000 }, { name: '아메리카노', temp: 'ICE', price: 3500 }, { name: '카페라떼', temp: 'ICE', price: 4500 }, { name: '치즈케이크', temp: '-', price: 6000 }]), 'text/csv'); },
+  csvExport() { download(`menu_${fileStamp()}.csv`, menuToCSV(S.dirty ? S.draft : S.cfg.menu), 'text/csv'); },
+  bulkApply() {
+    const r = csvToMenu(textToCSV($('#bulkTxt').value));
+    if (!r.menu.length) return note('#bulkMsg', '반영할 메뉴를 찾지 못했습니다. 줄 끝에 가격 숫자가 있는지 확인해 주세요.', 'err');
+    applyDraft(r.menu, $('#impMode2').value, '#bulkMsg', `${r.menu.length}개 메뉴 행을 반영했습니다${r.skipped ? ` (가격이 없는 ${r.skipped}줄 제외)` : ''}. 메뉴표를 확인하고 저장하세요.`);
+  },
+  bulkClear() { $('#bulkTxt').value = ''; note('#bulkMsg', ''); },
+  rowAdd() { S.draft.push({ id: 'm' + uid(), name: '', temp: 'HOT', price: 0 }); markDirty(); paint('menuEditor', true); const ins = $$('#tabBody [data-f="name"]'); ins[ins.length - 1]?.focus(); },
+  rowDel(t) { S.draft.splice(+t.dataset.i, 1); markDirty(); paint('menuEditor', true); },
+  rowUp(t) { const i = +t.dataset.i; [S.draft[i - 1], S.draft[i]] = [S.draft[i], S.draft[i - 1]]; markDirty(); paint('menuEditor', true); },
+  rowDown(t) { const i = +t.dataset.i; [S.draft[i + 1], S.draft[i]] = [S.draft[i], S.draft[i + 1]]; markDirty(); paint('menuEditor', true); },
+  async rowClear() { if (await ask('메뉴표를 모두 비울까요? 저장을 눌러야 실제로 반영됩니다.', '비우기', true)) { S.draft = []; markDirty(); paint('menuEditor', true); } },
+  sample() {
+    S.draft = [['아메리카노', 'HOT', 3000], ['아메리카노', 'ICE', 3500], ['카페라떼', 'HOT', 4000], ['카페라떼', 'ICE', 4500], ['녹차라떼', 'ICE', 4800], ['치즈케이크', '-', 6000]].map(([name, temp, price]) => ({ id: 'm' + uid(), name, temp, price }));
+    markDirty(); paint('menuEditor', true); note('#saveMsg', '예시 메뉴입니다. 실제 메뉴로 고친 뒤 저장하세요.');
+  },
+  revertMenu() { S.dirty = false; paint('menuEditor', true); paint('stabs'); },
+  saveMenu,
+  // 브랜드
+  async brandSave() {
+    const b = brandName();
+    if (!S.cfg.menu.length) return note('#brandMsg', '저장할 메뉴가 없습니다. 먼저 메뉴 관리에서 메뉴를 저장해 주세요.', 'err');
+    if (S.brands[b] && !await ask(`'${b}'에 이미 저장된 메뉴판(${S.brands[b].length}행)이 있습니다. 덮어쓸까요?`, '덮어쓰기')) return;
+    const map = { ...S.brands, [b]: S.cfg.menu.map(({ name, temp, price }) => ({ name, temp, price })) };
+    if (await guard(saveBrands(map))) note('#brandMsg', `'${b}' 메뉴 ${map[b].length}행을 저장했습니다.`, 'ok');
+  },
+  async brandLoad(t) {
+    const b = t.dataset.v, list = S.brands[b] || [];
+    if (!await ask(`'${b}' 메뉴판(${list.length}행)으로 현재 메뉴를 바꿀까요?`, '불러오기')) return;
+    if (await guard(saveCfg({ menu: list.map(m => ({ id: 'm' + uid(), name: m.name, temp: m.temp || '-', price: Number(m.price) || 0 })) }))) { S.dirty = false; note('#brandMsg', `'${b}' 메뉴를 불러왔습니다. 주문 화면에 바로 반영됩니다.`, 'ok'); }
+  },
+  async brandDel(t) {
+    const b = t.dataset.v;
+    if (!await ask(`'${b}' 메뉴판을 삭제할까요?`, '삭제', true)) return;
+    const map = { ...S.brands }; delete map[b];
+    if (await guard(saveBrands(map))) note('#brandMsg', `'${b}' 메뉴판을 삭제했습니다.`, 'ok');
+  },
+  // 주문 현황
+  async delOrder(t) {
+    const o = S.orders.find(x => x.id === t.dataset.id); if (!o) return;
+    if (await ask(`${o.name}님의 ${label(o)} 주문을 삭제할까요?`, '삭제', true)) await guard(S.db.doc('orders/' + o.id).delete());
+  },
+  async delAll() {
+    if (!await ask(`주문 ${S.orders.length}건을 모두 삭제합니다.\n삭제 전에 전체 현황 CSV와 이미지를 자동으로 저장합니다.`, '저장 후 전체 삭제', true)) return;
+    exportAll(); await exportImage();
+    for (const o of S.orders.slice()) { if (!await guard(S.db.doc('orders/' + o.id).delete())) return; }
+    toast('주문을 모두 삭제했습니다. 저장된 CSV와 이미지를 확인해 주세요.', 'ok', 4000);
+  },
+  exportOrders, exportAll, exportImage,
+  // AI
+  async aiTest() {
+    const cfg = { provider: $('#aiProv').value, key: $('#aiKey').value.trim(), model: $('#aiModel').value.trim() || aiDefaults($('#aiProv').value).model, endpoint: $('#aiEp').value.trim() };
+    if (!cfg.key) return note('#aiMsg', 'API 키를 입력해 주세요.', 'err');
+    note('#aiMsg', '연결을 확인하는 중입니다…');
+    try { const r = await aiCall(cfg, '"OK"라고만 답하세요.', null); note('#aiMsg', '연결 성공: ' + String(r).slice(0, 40), 'ok'); }
+    catch (e) { note('#aiMsg', aiErrorText(e), 'err'); }
+  },
+  aiClear() { AI.key = ''; lsSet('cafe-ai', AI); renderView(); toast('API 키를 삭제했습니다.', 'ok'); },
+  // 데이터
+  backup() {
+    if (!S.db.dump) return note('#dbMsg', '지금 쓰는 DB 어댑터는 내보내기를 지원하지 않습니다.', 'err');
+    download(`cafe-backup_${fileStamp()}.json`, JSON.stringify({ app: 'cafe-order', version: VERSION, data: S.db.dump() }), 'application/json');
+    note('#dbMsg', '백업 파일을 만들었습니다. 계정 정보가 들어 있으니 보관에 유의하세요.', 'ok');
+  },
+  async legacy() { if (await ask('이전 버전 데이터를 현재 데이터에 합칠까요? 같은 주문은 덮어씁니다.', '가져오기')) importLegacy(false); },
+  // 계정
+  async permSave(t) {
+    const i = +t.dataset.i, perms = {};
+    $$(`[data-perm="${i}"]`).forEach(c => { perms[c.dataset.key] = c.checked; });
+    const list = accounts().map((a, j) => j === i ? { ...a, perms } : a);
+    if (await guard(saveAccounts(list))) toast(`${list[i].id} 계정의 권한을 저장했습니다.`, 'ok');
+  },
+  async acctReset(t) {
+    const a = accounts()[+t.dataset.i];
+    if (!await ask(`${a.id} 계정의 비밀번호를 1234로 초기화할까요? 다음 로그인 때 새 비밀번호를 정하게 됩니다.`, '초기화')) return;
+    if (await guard(saveAccounts(accounts().map(x => x.id === a.id ? { ...x, ph: hash(x.id, '1234'), must: true } : x)))) toast(`${a.id} 비밀번호를 초기화했습니다.`, 'ok');
+  },
+  async acctDel(t) {
+    const a = accounts()[+t.dataset.i];
+    if (!await ask(`${a.id} 계정을 삭제할까요?`, '삭제', true)) return;
+    if (await guard(saveAccounts(accounts().filter(x => x.id !== a.id)))) toast(`${a.id} 계정을 삭제했습니다.`, 'ok');
+  },
+};
+
+document.addEventListener('click', e => {
+  const g = e.target.closest('[data-go]');
+  if (g) { go(g.dataset.go); return; }
+  const t = e.target.closest('[data-act]');
+  if (!t || t.disabled) return;
+  if (t.type === 'checkbox') return; // 체크박스는 change에서 처리
+  ACT[t.dataset.act]?.(t, e);
+});
+document.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.dataset.act === 'paid') { if (!await guard(S.db.doc('orders/' + t.dataset.id).update({ paid: t.checked }))) t.checked = !t.checked; return; }
+  if (t.dataset.act === 'names') return ACT.names(t);
+  if (t.dataset.f) { // 메뉴표 select 변경
+    const m = S.draft[+t.dataset.i]; if (m) { m[t.dataset.f] = t.value; markDirty(); }
+    return;
+  }
+  if (t.id === 'brandSel') { $('#brandCustom').disabled = t.value !== '사용자 지정'; return; }
+  if (t.id === 'aiProv') { const d = aiDefaults(t.value); $('#aiModel').value = d.model; $('#aiModel').placeholder = d.model; $('#aiEp').value = ''; $('#aiEp').placeholder = d.endpoint; return; }
+  if (t.id === 'menuPhoto') {
+    const f = t.files?.[0]; t.value = ''; if (!f) return;
+    note('#photoMsg', '사진을 줄여서 저장하는 중입니다…');
+    try { const data = await shrinkImage(f); if (await guard(S.db.doc('config/image').set({ data, ts: Date.now() }))) note('#photoMsg', '메뉴판 사진을 저장했습니다. AI 또는 OCR로 메뉴를 읽어 보세요.', 'ok'); }
+    catch (x) { note('#photoMsg', '사진을 읽지 못했습니다. 다른 사진으로 다시 시도해 주세요.', 'err'); }
+    return;
+  }
+  if (t.id === 'menuCsv') {
+    const f = t.files?.[0]; t.value = ''; if (!f) return;
+    try {
+      const r = csvToMenu(decodeText(await f.arrayBuffer()));
+      if (!r.menu.length) return note('#csvMsg', '읽을 수 있는 메뉴 행이 없습니다. 열 순서(메뉴, 구분, 가격)와 가격 숫자를 확인해 주세요.', 'err');
+      applyDraft(r.menu, $('#impMode2').value, '#csvMsg', `${r.menu.length}개 메뉴 행을 불러왔습니다${r.skipped ? ` (잘못된 ${r.skipped}행 제외)` : ''}. 메뉴표를 확인하고 저장하세요.`);
+    } catch (x) { note('#csvMsg', '파일을 읽지 못했습니다.', 'err'); }
+    return;
+  }
+  if (t.id === 'dbImport') {
+    const f = t.files?.[0]; t.value = ''; if (!f) return;
+    try {
+      const j = JSON.parse(decodeText(await f.arrayBuffer()));
+      if (!j || j.app !== 'cafe-order' || !j.data) throw new Error('format');
+      const mode = $('#impMode').value;
+      if (mode === 'replace' && !await ask('현재 데이터를 모두 지우고 백업 내용으로 바꿉니다. 계속할까요?', '전부 바꾸기', true)) return;
+      if (!S.db.restore) throw new Error('unsupported');
+      await S.db.restore(j.data, mode);
+      note('#dbMsg', '백업을 가져왔습니다.', 'ok');
+    } catch (x) { note('#dbMsg', '가져오지 못했습니다. 이 앱에서 내보낸 백업 파일인지 확인해 주세요.', 'err'); }
+  }
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'oname') { S.name = t.value; lsSet('cafe-name', t.value.trim()); paint('mine'); paint('orderBar'); return; }
+  if (t.id === 'mq') { S.q = t.value; paint('menuGrid'); return; }
+  if (t.dataset.f && t.tagName === 'INPUT') { const m = S.draft[+t.dataset.i]; if (m) { m[t.dataset.f] = t.value; markDirty(); } }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'oname') { e.preventDefault(); submitOrder(); }
+});
+document.addEventListener('submit', async e => {
+  if (e.target.method === 'dialog') return; // 대화상자 닫기는 브라우저 기본 동작에 맡김
+  e.preventDefault();
+  const id = e.target.id;
+  const notReady = S.dbMode === 'sheet' && !S.db.status.ready; // 시트를 다 불러오기 전에는 기본 계정·비밀번호로 열리지 않게 막음
+  if (notReady && (id === 'f-check' || id === 'f-login')) return note(id === 'f-check' ? '#chkMsg' : '#loginMsg', '구글 시트에서 데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.', 'err');
+  if (id === 'f-check') {
+    if ($('#cpw').value === S.cfg.checkPw) { S.checkOk = true; renderView(); }
+    else { note('#chkMsg', '비밀번호가 맞지 않습니다.', 'err'); $('#cpw').select(); }
+  } else if (id === 'f-login') {
+    const lid = $('#lid').value.trim(), pw = $('#lpw').value, a = accounts().find(x => x.id === lid);
+    if (a && a.ph === hash(a.id, pw)) { S.session = { id: a.id }; logEvent(a.id, 'login', true); renderView(); }
+    else { logEvent(lid, 'login', false); note('#loginMsg', '아이디 또는 비밀번호가 맞지 않습니다.', 'err'); $('#lpw').select(); }
+  } else if (id === 'f-must' || id === 'f-mypw') {
+    const must = id === 'f-must', msg = must ? '#mustMsg' : '#mypwMsg';
+    const p1 = $(must ? '#np1' : '#mp1').value, p2 = $(must ? '#np2' : '#mp2').value, a = me();
+    if (!must && a.ph !== hash(a.id, $('#mp0').value)) return note(msg, '현재 비밀번호가 맞지 않습니다.', 'err');
+    if (p1.length < 4 || p1 === '1234') return note(msg, '4자 이상, 1234가 아닌 비밀번호를 입력해 주세요.', 'err');
+    if (hash(a.id, p1) === a.ph) return note(msg, '지금 비밀번호와 다른 비밀번호를 입력해 주세요.', 'err');
+    if (p1 !== p2) return note(msg, '두 비밀번호가 같지 않습니다.', 'err');
+    if (await guard(saveAccounts(accounts().map(x => x.id === a.id ? { ...x, ph: hash(x.id, p1), must: false } : x)))) {
+      logEvent(a.id, 'pwchange', true); toast('비밀번호를 변경했습니다.', 'ok'); renderView();
+    }
+  } else if (id === 'f-checkpw') {
+    const v = $('#ncp').value.trim();
+    if (v.length < 4) return note('#checkPwMsg', '4자 이상 입력해 주세요.', 'err');
+    if (await guard(saveCfg({ checkPw: v, checkPwDate: todayKey(), checkPwBy: 'manual' }))) { $('#ncp').value = ''; note('#checkPwMsg', `주문확인 비밀번호를 ${v}(으)로 바꿨습니다. 오늘 하루 사용됩니다.`, 'ok'); }
+  } else if (id === 'f-ai') {
+    AI = { provider: $('#aiProv').value, key: $('#aiKey').value.trim(), model: $('#aiModel').value.trim() || aiDefaults($('#aiProv').value).model, endpoint: $('#aiEp').value.trim() };
+    { const ok = lsSet('cafe-ai', AI); note('#aiMsg', ok ? 'AI 설정을 저장했습니다.' : '저장하지 못했습니다.', ok ? 'ok' : 'err'); }
+  } else if (id === 'f-conn') {
+    const next = { type: $('#cnType').value, url: $('#cnUrl').value.trim(), token: $('#cnTok').value.trim() };
+    if (next.type === 'sheet') {
+      if (!next.url || !next.token) return note('#cnMsg', '웹 앱 URL과 토큰을 입력해 주세요.', 'err');
+      note('#cnMsg', '연결을 확인하는 중입니다…');
+      try { await sheetCall(next, { op: 'ping' }); } catch (x) { return note('#cnMsg', '연결 실패: ' + sheetErrText(x) + '. 저장하지 않았습니다.', 'err'); }
+    }
+    if (!lsSet('cafe-conn', next)) return note('#cnMsg', '저장하지 못했습니다.', 'err');
+    const same = next.type === CONN.type && next.url === CONN.url && next.token === CONN.token;
+    CONN = next;
+    if (same) return note('#cnMsg', '저장했습니다.', 'ok');
+    note('#cnMsg', next.type === 'remote' && !ADAPTERS.remote ? '저장했습니다. ADAPTERS.remote 어댑터를 넣기 전까지는 이 브라우저에 저장합니다.' : '저장했습니다. 다시 연결합니다…', 'ok');
+    setTimeout(() => location.reload(), 900);
+  } else if (id === 'f-acct') {
+    const nid = $('#nid').value.trim(), npw = $('#npw').value || '1234';
+    if (!/^[A-Za-z0-9_가-힣]{2,20}$/.test(nid)) return note('#acctMsg', '아이디는 2~20자의 글자, 숫자, _ 만 쓸 수 있습니다.', 'err');
+    if (accounts().some(x => x.id === nid)) return note('#acctMsg', '이미 있는 아이디입니다.', 'err');
+    const perms = {}; $$('[data-newperm]').forEach(c => { perms[c.dataset.newperm] = c.checked; });
+    if (await guard(saveAccounts(accounts().concat([{ id: nid, ph: hash(nid, npw), role: 'user', must: true, perms }])))) {
+      $('#nid').value = ''; $('#npw').value = ''; note('#acctMsg', `${nid} 계정을 추가했습니다.`, 'ok');
+    }
+  }
+});
+window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('hashchange', route);
+$('#photoDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); }); // 사진 바깥(배경)을 누르면 닫힘
+
+/* =====================================================================
+   시작
+   ===================================================================== */
+function setTheme(mode) {
+  lsSet('cafe-theme', mode);
+  if (mode === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme = mode;
+  $('#themeBtn').textContent = { auto: '🌓', light: '☀️', dark: '🌙' }[mode];
+  $('#themeBtn').title = { auto: '테마: 시스템 설정', light: '테마: 밝게', dark: '테마: 어둡게' }[mode];
+}
+setTheme(lsGet('cafe-theme', 'auto'));
+const d0 = new Date();
+$('#today').textContent = `${d0.getMonth() + 1}월 ${d0.getDate()}일 ${'일월화수목금토'[d0.getDay()]}요일`;
+$('#ver').textContent = 'v' + VERSION;
+document.title = '카페 주문 v' + VERSION;
+init();
+route();
+setInterval(rotateCheckPw, 60000); // 페이지를 켜 둔 채 자정을 넘겨도 바뀌도록
+})();
+</script>
+</body>
+</html>
