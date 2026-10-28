@@ -211,6 +211,18 @@ dialog::backdrop{background:rgba(20,14,10,.45)}
 .dlg{padding:20px;display:grid;gap:16px}
 .dlg p{white-space:pre-line}
 dialog.photo{max-width:min(96vw,900px)}
+#customDlg{width:min(92vw,420px)}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.seg label{min-height:44px;display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--line);border-radius:12px;background:var(--surface-2);font-weight:700;cursor:pointer}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.seg .hot:has(input:checked){background:var(--hot);border-color:var(--hot);color:#fff}
+.seg .ice:has(input:checked){background:var(--ice);border-color:var(--ice);color:#fff}
+.seg .none:has(input:checked){background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.add-custom{width:100%;margin-top:10px;border-style:dashed}
+.mlist.custom{margin-top:12px}
+.xbtn{margin-left:8px;border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px;vertical-align:middle}
+.xbtn:hover{color:var(--bad);background:var(--bad-bg)}
 dialog.photo img{display:block;max-width:100%;max-height:80vh;border-radius:10px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -235,6 +247,17 @@ dialog.photo img{display:block;max-width:100%;max-height:80vh;border-radius:10px
   <main id="main"></main>
 </div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
+<dialog id="customDlg" aria-labelledby="cuTitle"><form id="f-custom" class="dlg" novalidate>
+  <div><h3 id="cuTitle">메뉴 직접 추가</h3><p class="hint">메뉴판에 없는 메뉴를 적어 주문하세요. 추가한 메뉴는 「직접 추가한 메뉴」에 남아 모든 기기에서 다시 고를 수 있습니다.</p></div>
+  <div><label class="lbl" for="cuName">메뉴 이름</label><input id="cuName" class="inp" maxlength="40" autocomplete="off" placeholder="예) 바닐라라떼"></div>
+  <div><span class="lbl" id="cuTempL">온도</span><div class="seg" role="radiogroup" aria-labelledby="cuTempL">
+    <label class="hot"><input type="radio" name="cuTemp" value="HOT"> HOT</label>
+    <label class="ice"><input type="radio" name="cuTemp" value="ICE"> ICE</label>
+    <label class="none"><input type="radio" name="cuTemp" value="-"> 온도 없음</label></div></div>
+  <div><label class="lbl" for="cuPrice">가격 (원 · 모르면 비워 두세요)</label><input id="cuPrice" class="inp" inputmode="numeric" maxlength="9" autocomplete="off" placeholder="예) 4500"></div>
+  <div id="cuMsg"></div>
+  <div class="row end"><button class="btn" type="button" data-act="customClose">취소</button><button class="btn primary" type="submit">추가하고 고르기</button></div>
+</form></dialog>
 <dialog id="askDlg"><form method="dialog" class="dlg"><p id="askMsg"></p><div class="row end"><button class="btn" value="cancel">취소</button><button class="btn primary" value="ok" id="askOk">확인</button></div></form></dialog>
 <dialog id="photoDlg" class="photo"><form method="dialog" class="dlg"><div class="row"><h3 class="grow">메뉴판 사진</h3><button class="btn sm" value="close">닫기</button></div><img id="photoImg" alt="메뉴판 사진"></form></dialog>
 <input id="menuPhoto" type="file" accept="image/*" hidden>
@@ -248,7 +271,7 @@ dialog.photo img{display:block;max-width:100%;max-height:80vh;border-radius:10px
 /* =====================================================================
    상수
    ===================================================================== */
-const VERSION = '3.3';
+const VERSION = '3.4';
 const LEGACY_KEY = 'cafeOrderApp_v10';           // v1.x · v2.0(단일 파일) 저장 데이터
 const LEGACY_BRAND_KEY = 'cafeOrderBrandMenus_v1';
 const TESSERACT_SRC = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
@@ -274,6 +297,10 @@ const TABS = [
 const SORTS = [['new', '최신순'], ['old', '주문순'], ['name', '이름순'], ['menu', '메뉴순']];
 const TEMP_ORDER = { HOT: 0, ICE: 1, '-': 2 };
 const RELEASES = [
+  ['v3.4', '2026-10-28', [
+    '주문하기 화면에 「＋ 메뉴 직접 추가」 버튼: 메뉴판에 없는 메뉴를 이름·온도·가격으로 추가해 바로 주문',
+    '직접 추가한 메뉴는 DB에 저장되어 모든 기기의 「직접 추가한 메뉴」 목록에서 다시 고를 수 있고, 삭제 가능',
+  ]],
   ['v3.3', '2026-10-28', [
     '「내 비밀번호」 메뉴를 설정 왼쪽 계정 상자의 「비밀번호 변경」 버튼으로 이동',
     '사용자 계정에서는 릴리즈 노트 탭을 숨김',
@@ -793,6 +820,7 @@ const S = {
   view: 'order', tab: 'menu', session: null, checkOk: false,
   sort: 'new', showNames: false, pick: null, q: '', busy: false, cooling: false,
   name: lsGet('cafe-name', '') || '',
+  custom: [], // 주문 화면에서 직접 추가한 메뉴(DB 'custom' 컬렉션, 모든 기기 공유)
   draft: [], dirty: false, reading: false,
 };
 const accounts = () => S.accounts || defAccounts();
@@ -866,6 +894,10 @@ function init() {
   S.db.doc('config/brands').onSnapshot(s => { S.brands = (s.exists && s.data().map) || {}; paintAll(); }, dbErr);
   S.db.collection('orders').onSnapshot(q => {
     S.orders = q.docs.map(x => ({ ...x.data(), id: x.id })); S.loaded.orders = true; paintAll();
+  }, dbErr);
+  S.db.collection('custom').onSnapshot(q => {
+    S.custom = q.docs.map(x => ({ ...x.data(), id: x.id })).filter(m => m.name).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    paintAll(); migrateCustom();
   }, dbErr);
   S.db.collection('logs').orderBy('ts', 'desc').limit(200).onSnapshot(q => { S.logs = q.docs.map(x => x.data()); paintAll(); }, () => {});
 }
@@ -946,13 +978,31 @@ function orderView() {
         <input id="mq" class="inp" type="search" placeholder="메뉴 검색" value="${esc(S.q)}" aria-label="메뉴 검색" data-paint="searchBox">
         <span data-paint="photoBtn"></span></div>
       <div data-paint="menuGrid"></div>
+      <div data-paint="customGrid"></div>
+      <button class="btn add-custom" data-act="customOpen">＋ 메뉴 직접 추가</button>
     </div>
     <div class="obar" data-paint="orderBar"></div>
   </section>`;
 }
-function menuGroups() {
+const orderMenu = () => S.cfg.menu.concat(S.custom); // 주문 화면에서 고를 수 있는 전체 메뉴
+const findPick = () => S.pick && orderMenu().find(x => x.id === S.pick);
+const customRef = id => S.db.collection('custom').doc(id);
+/* v3.4 초기판은 직접 추가한 메뉴를 이 기기(cafe-custom)에만 저장했으므로, 한 번 DB로 옮긴 뒤 지움 */
+let customMigrated = false;
+async function migrateCustom() {
+  if (customMigrated) return;
+  customMigrated = true;
+  const old = (lsGet('cafe-custom', []) || []).filter(m => m && m.name);
+  if (!old.length) return;
+  const has = m => S.custom.some(c => normName(c.name) === normName(m.name) && c.temp === m.temp);
+  try {
+    for (const m of old) if (!has(m)) await customRef(m.id || 'c' + uid()).set({ name: m.name, temp: m.temp || '-', price: Number(m.price) || 0, ts: Date.now() });
+    localStorage.removeItem('cafe-custom');
+  } catch (e) { customMigrated = false; }
+}
+function menuGroups(list = S.cfg.menu) {
   const map = new Map();
-  S.cfg.menu.forEach(m => { const k = String(m.name).trim(); if (!map.has(k)) map.set(k, { name: k, items: [] }); map.get(k).items.push(m); });
+  list.forEach(m => { const k = String(m.name).trim(); if (!map.has(k)) map.set(k, { name: k, items: [] }); map.get(k).items.push(m); });
   const groups = [...map.values()];
   groups.forEach(g => g.items.sort((a, b) => (TEMP_ORDER[a.temp] ?? 3) - (TEMP_ORDER[b.temp] ?? 3)));
   return groups;
@@ -962,22 +1012,30 @@ PAINT.photoBtn = el => { el.innerHTML = S.img ? '<button class="btn sm" data-act
 PAINT.menuGrid = el => {
   if (!S.loaded.cfg) { el.innerHTML = '<div class="empty">메뉴를 불러오는 중입니다…</div>'; return; }
   const all = menuGroups();
-  if (!all.length) { el.innerHTML = '<div class="empty">아직 등록된 메뉴가 없습니다.<br>설정 → 메뉴 관리에서 메뉴판 사진이나 CSV로 메뉴를 등록하세요.</div>'; return; }
+  if (!all.length) { el.innerHTML = `<div class="empty">아직 등록된 메뉴가 없습니다.<br>설정 → 메뉴 관리에서 메뉴판 사진이나 CSV로 메뉴를 등록하세요.${S.custom.length ? '' : '<br>원하는 메뉴가 있으면 아래 「＋ 메뉴 직접 추가」로 주문할 수 있습니다.'}</div>`; return; }
   const q = normName(S.q), groups = q ? all.filter(g => normName(g.name).includes(q)) : all;
-  if (!groups.length) { el.innerHTML = `<div class="empty">'${esc(S.q)}'에 맞는 메뉴가 없습니다.</div>`; return; }
+  if (!groups.length) { el.innerHTML = `<div class="empty">'${esc(S.q)}'에 맞는 메뉴가 없습니다. 아래 「＋ 메뉴 직접 추가」로 주문할 수 있습니다.</div>`; return; }
+  el.innerHTML = menuListHtml(groups, '메뉴');
+};
+function menuListHtml(groups, head, custom) {
   const btn = (g, i, cls, tag, wide) => `<button class="tbtn ${cls}${wide ? ' wide' : ''}" data-act="pick" data-id="${esc(i.id)}" aria-pressed="${S.pick === i.id}" aria-label="${esc(g.name)} ${tag} ${won(i.price)}"><small>${tag}</small>${won(i.price)}</button>`;
-  el.innerHTML = '<div class="mlist" role="list"><div class="mhead" aria-hidden="true"><span>메뉴</span><span class="h">HOT</span><span class="i">ICE</span></div>' + groups.map(g => {
+  return `<div class="mlist${custom ? ' custom' : ''}" role="list"><div class="mhead" aria-hidden="true"><span>${head}</span><span class="h">HOT</span><span class="i">ICE</span></div>` + groups.map(g => {
     const hot = g.items.find(i => i.temp === 'HOT'), ice = g.items.find(i => i.temp === 'ICE'), none = g.items.find(i => i.temp === '-');
     const cells = hot || ice
       ? (hot ? btn(g, hot, 'hot', 'HOT') : '<span class="tna">HOT 없음</span>') + (ice ? btn(g, ice, 'ice', 'ICE') : '<span class="tna">ICE 없음</span>')
       : btn(g, none, 'none', '온도 없음', true);
-    return `<div class="mrow${g.items.some(i => i.id === S.pick) ? ' on' : ''}" role="listitem"><div class="mname">${esc(g.name)}</div>${cells}</div>`;
+    const del = custom ? `<button class="xbtn" data-act="customDel" data-name="${esc(g.name)}" aria-label="${esc(g.name)} 삭제" title="목록에서 삭제">✕</button>` : '';
+    return `<div class="mrow${g.items.some(i => i.id === S.pick) ? ' on' : ''}" role="listitem"><div class="mname">${esc(g.name)}${del}</div>${cells}</div>`;
   }).join('') + '</div>';
+}
+PAINT.customGrid = el => {
+  const q = normName(S.q), groups = menuGroups(S.custom).filter(g => !q || normName(g.name).includes(q));
+  el.innerHTML = groups.length ? menuListHtml(groups, '직접 추가한 메뉴', true) : '';
 };
 PAINT.orderBar = el => {
-  if (!S.cfg.menu.length) { el.classList.add('hidden'); return; }
+  if (!orderMenu().length) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
-  const m = S.pick && S.cfg.menu.find(x => x.id === S.pick);
+  const m = findPick();
   if (S.pick && !m) S.pick = null;
   const who = S.name.trim() ? `${esc(S.name.trim())}님` : '<span style="color:var(--bad)">이름을 입력해 주세요</span>';
   el.innerHTML = m
@@ -998,7 +1056,7 @@ PAINT.mine = el => {
 async function submitOrder() {
   const inp = $('#oname'), name = (inp ? inp.value : S.name).trim();
   if (!name) { toast('이름을 먼저 입력해 주세요.', 'err'); if (inp) { inp.focus(); inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); } return; }
-  const m = S.pick && S.cfg.menu.find(x => x.id === S.pick);
+  const m = findPick();
   if (!m) { toast('메뉴를 먼저 골라 주세요.', 'err'); return; }
   if (S.busy || S.cooling) return;
   S.busy = true; paint('orderBar');
@@ -1010,7 +1068,7 @@ async function submitOrder() {
     S.cooling = true; setTimeout(() => { S.cooling = false; paint('orderBar'); }, 1500); // 두 번 눌림 방지
     toast(`${label({ menu: m.name, temp: m.temp })} 주문 완료 · ${hms(now)}`, 'ok');
   }
-  paint('menuGrid'); paint('orderBar'); paint('mine');
+  paint('menuGrid'); paint('customGrid'); paint('orderBar'); paint('mine');
 }
 
 /* ---------------- 주문확인 ---------------- */
@@ -1385,7 +1443,21 @@ PAINT.logList = el => {
 const ACT = {
   theme() { const order = ['auto', 'light', 'dark'], cur = lsGet('cafe-theme', 'auto'); setTheme(order[(order.indexOf(cur) + 1) % 3]); },
   photo() { if (!S.img) return; $('#photoImg').src = S.img; $('#photoDlg').showModal ? $('#photoDlg').showModal() : window.open(S.img); },
-  pick(t) { S.pick = S.pick === t.dataset.id ? null : t.dataset.id; paint('menuGrid'); paint('orderBar'); },
+  customOpen() {
+    const d = $('#customDlg');
+    $('#f-custom').reset(); note('#cuMsg', '');
+    if (S.q.trim()) $('#cuName').value = S.q.trim(); // 검색해도 없던 메뉴면 이름을 미리 채움
+    d.showModal(); $('#cuName').focus();
+  },
+  customClose() { $('#customDlg').close(); },
+  async customDel(t) {
+    const nm = normName(t.dataset.name), list = S.custom.filter(m => normName(m.name) === nm);
+    if (!list.length || !await ask(`'${t.dataset.name}'을(를) 직접 추가한 메뉴에서 지울까요? 모든 기기에서 사라지고, 이미 들어온 주문은 그대로 남습니다.`, '지우기', true)) return;
+    if (list.some(m => m.id === S.pick)) S.pick = null;
+    for (const m of list) { if (!await guard(customRef(m.id).delete())) return; }
+    toast(`'${t.dataset.name}'을(를) 직접 추가한 메뉴에서 지웠습니다.`);
+  },
+  pick(t) { S.pick = S.pick === t.dataset.id ? null : t.dataset.id; paint('menuGrid'); paint('customGrid'); paint('orderBar'); },
   submit: submitOrder,
   async cancel(t) {
     const o = S.orders.find(x => x.id === t.dataset.id); if (!o) return;
@@ -1578,7 +1650,7 @@ document.addEventListener('change', async e => {
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'oname') { S.name = t.value; lsSet('cafe-name', t.value.trim()); paint('mine'); paint('orderBar'); return; }
-  if (t.id === 'mq') { S.q = t.value; paint('menuGrid'); return; }
+  if (t.id === 'mq') { S.q = t.value; paint('menuGrid'); paint('customGrid'); return; }
   if (t.dataset.f && t.tagName === 'INPUT') { const m = S.draft[+t.dataset.i]; if (m) { m[t.dataset.f] = t.value; markDirty(); } }
 });
 document.addEventListener('keydown', e => {
@@ -1590,6 +1662,28 @@ document.addEventListener('submit', async e => {
   const id = e.target.id;
   const notReady = S.dbMode === 'sheet' && !S.db.status.ready; // 시트를 다 불러오기 전에는 기본 계정·비밀번호로 열리지 않게 막음
   if (notReady && (id === 'f-check' || id === 'f-login')) return note(id === 'f-check' ? '#chkMsg' : '#loginMsg', '구글 시트에서 데이터를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.', 'err');
+  if (id === 'f-custom') {
+    const name = $('#cuName').value.trim().replace(/\s+/g, ' '), temp = $('input[name="cuTemp"]:checked')?.value;
+    const raw = $('#cuPrice').value.replace(/[^\d]/g, ''), price = raw ? Math.min(Number(raw), 1000000) : 0;
+    if (!name) { $('#cuName').focus(); return note('#cuMsg', '메뉴 이름을 입력해 주세요.', 'err'); }
+    if (!temp) return note('#cuMsg', 'HOT, ICE, 온도 없음 중 하나를 골라 주세요.', 'err');
+    const same = m => normName(m.name) === normName(name) && m.temp === temp;
+    const official = S.cfg.menu.find(same);
+    if (official) { S.pick = official.id; toast(`메뉴판에 있는 ${label({ menu: official.name, temp })}을(를) 골랐습니다.`, 'ok'); }
+    else {
+      const old = S.custom.find(same), cid = old ? old.id : 'c' + uid();
+      const sub = e.submitter; if (sub) sub.disabled = true;
+      const ok = await guard(customRef(cid).set({ name, temp, price, ts: old?.ts || Date.now() }), '메뉴를 추가하지 못했습니다. 다시 눌러 주세요.');
+      if (sub) sub.disabled = false;
+      if (!ok) return;
+      if (!S.custom.some(m => m.id === cid)) S.custom.push({ id: cid, name, temp, price, ts: Date.now() }); // 구독 알림 전에 고른 메뉴가 풀리지 않게
+      S.pick = cid; toast(`${label({ menu: name, temp })}을(를) 추가해 골랐습니다. 아래 「주문」을 누르세요.`, 'ok');
+    }
+    S.q = ''; $('#customDlg').close();
+    if ($('#mq')) $('#mq').value = '';
+    paint('menuGrid'); paint('customGrid'); paint('orderBar'); paint('searchBox');
+    return;
+  }
   if (id === 'f-check') {
     if ($('#cpw').value === S.cfg.checkPw) { S.checkOk = true; renderView(); }
     else { note('#chkMsg', '비밀번호가 맞지 않습니다.', 'err'); $('#cpw').select(); }
@@ -1639,7 +1733,7 @@ document.addEventListener('submit', async e => {
 });
 window.addEventListener('beforeunload', e => { if (S.dirty) { e.preventDefault(); e.returnValue = ''; } });
 window.addEventListener('hashchange', route);
-$('#photoDlg').addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); }); // 사진 바깥(배경)을 누르면 닫힘
+['#photoDlg', '#customDlg'].forEach(s => $(s).addEventListener('click', e => { if (e.target === e.currentTarget) e.currentTarget.close(); })); // 대화상자 바깥(배경)을 누르면 닫힘
 
 /* =====================================================================
    시작
